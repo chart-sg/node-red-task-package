@@ -1,0 +1,74 @@
+<!-- Task Package Update Node HTML -->
+<script type="text/javascript">
+(function () {
+    'use strict'
+    
+    RED.nodes.registerType('tp-update', {
+        category: 'Task Package',
+        color: '#C7E9B4',
+        defaults: {
+            name: { value: '' },
+            user_status: { value: '' },
+            config_node: { value: '', type: 'tp-config' }
+        },
+        inputs: 1,
+        outputs: 0,
+        inputLabels: ['Task data'],
+        icon: 'font-awesome/fa-edit',
+        paletteLabel: 'tp-update',
+        label: function () { 
+            return this.name || this.user_status || 'tp-update'
+        }
+    })
+})()
+</script>
+
+<script type="text/html" data-template-name="tp-update">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Task Package Update">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-config_node"><i class="fa fa-cogs"></i> Configuration</label>
+        <input type="text" id="node-input-config_node">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-user_status"><i class="fa fa-info-circle"></i> User Status</label>
+        <input type="text" id="node-input-user_status" placeholder="Processing step 1">
+        <div class="form-tips">
+            Custom status message to store in database. Can also be provided via msg.user_status.
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="tp-update">
+    <p>Updates user-defined status information for the current task package.</p>
+    
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>tp_data <span class="property-type">object</span></dt>
+        <dd><b>Required:</b> Task package data containing task information.</dd>
+        
+        <dt>user_status <span class="property-type">string</span></dt>
+        <dd><b>Optional:</b> Custom status message. Overrides node configuration if provided.</dd>
+    </dl>
+    
+    <h3>Outputs</h3>
+    <p>None. This node only updates the database and does not pass messages forward.</p>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>User Status <span class="property-type">string</span></dt>
+        <dd>Custom status message to store. Examples: "Processing step 1", "Waiting for approval".</dd>
+    </dl>
+    
+    <h3>Usage</h3>
+    <p>Place this node at key points in your flow to provide status updates:</p>
+    <pre>
+[tp-start] → [step-1] → [tp-update] → [step-2] → [tp-end]
+                           ↓
+                    "Processing step 1"
+    </pre>
+</script>

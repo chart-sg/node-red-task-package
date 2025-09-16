@@ -1,0 +1,122 @@
+<!-- Task Package Configuration Node HTML -->
+<script type="text/javascript">
+    // Isolate this code
+    (function () {
+        'use strict'
+
+        const nodeLabel = 'tp-config'
+
+        RED.nodes.registerType(nodeLabel, {
+            category: 'config',
+            color: '#E6E0F8',
+            defaults: {
+                name: { value: '' },
+                keycloak_url: { value: '' },
+                db_url: { value: '/tmp/sqlite' },
+                host_url: { value: 'localhost' },
+                host_port: { value: 1880, validate: RED.validators.number() }
+            },
+            label: function () {
+                return this.name || 'Task Package Config'
+            },
+            icon: 'font-awesome/fa-cogs'
+        })
+
+    })()
+</script>
+
+<script type="text/html" data-template-name="tp-config">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Task Package Config">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-config-input-keycloak_url"><i class="fa fa-shield"></i> Keycloak URL</label>
+        <input type="text" id="node-config-input-keycloak_url" placeholder="http://10.233.0.80:8080/realms/chart-sandbox/protocol/openid-connect/userinfo">
+        <div class="form-tips">
+            <b>Optional:</b> Keycloak userinfo endpoint for authentication. Leave empty to disable security.
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-config-input-db_url"><i class="fa fa-database"></i> Database Path</label>
+        <input type="text" id="node-config-input-db_url" placeholder="/tmp/sqlite">
+        <div class="form-tips">
+            Database file path for SQLite storage.
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-config-input-host_url"><i class="fa fa-globe"></i> Host URL</label>
+        <input type="text" id="node-config-input-host_url" placeholder="http://localhost">
+        <div class="form-tips">
+            Base URL for generating dashboard form URLs.
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-config-input-host_port"><i class="fa fa-plug"></i> Host Port</label>
+        <input type="number" id="node-config-input-host_port" placeholder="1880" min="1" max="65535">
+        <div class="form-tips">
+            Port number for the Node-RED server.
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="tp-config">
+    <p>Global configuration node for the Task Package system.</p>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>Name <span class="property-type">string</span></dt>
+        <dd>A descriptive name for this configuration.</dd>
+        
+        <dt>Keycloak URL <span class="property-type">string</span></dt>
+        <dd>
+            <b>Optional:</b> Keycloak userinfo endpoint for authentication and authorization.
+            If provided, task package requests will be validated against Keycloak.
+            If empty, security is disabled (useful for development).
+            <br><br>
+            Example: <code>http://10.233.0.80:8080/realms/chart-sandbox/protocol/openid-connect/userinfo</code>
+        </dd>
+        
+        <dt>Database Path <span class="property-type">string</span></dt>
+        <dd>
+            File path for the SQLite database that stores task package definitions and execution instances.
+            <br><br>
+            Default: <code>/tmp/sqlite</code>
+        </dd>
+        
+        <dt>Host URL <span class="property-type">string</span></dt>
+        <dd>
+            Base URL used to construct dashboard form URLs in API responses.
+            Should include the protocol (http:// or https://).
+            <br><br>
+            Example: <code>http://10.233.0.80</code>
+        </dd>
+        
+        <dt>Host Port <span class="property-type">number</span></dt>
+        <dd>
+            Port number where Node-RED is running. Used to construct complete URLs.
+            <br><br>
+            Default: <code>1880</code>
+        </dd>
+    </dl>
+    
+    <h3>Usage</h3>
+    <p>
+        This configuration node must be referenced by task package nodes (tp-start, tp-cancel, etc.) 
+        to provide system-wide settings. Only one configuration should be active per Node-RED instance.
+    </p>
+    
+    <h3>Security</h3>
+    <p>
+        When Keycloak URL is configured, all task package API requests must include a valid Bearer token.
+        The token will be validated against Keycloak, and the user's <code>tp_allowed</code> array will be 
+        checked to ensure they have permission to execute the requested task package.
+    </p>
+    <p>
+        When Keycloak URL is empty, all security checks are bypassed - useful for development and testing.
+    </p>
+</script>

@@ -1,0 +1,182 @@
+<!-- Task Package Cancel Node HTML -->
+<script type="text/javascript">
+    // Isolate this code
+    (function () {
+        'use strict'
+
+        const nodeLabel = 'tp-cancel'
+
+        RED.nodes.registerType(nodeLabel, {
+            category: 'Task Package',
+            color: '#F3B567',
+            defaults: {
+                name: { value: '' },
+                tp_id: { value: '', required: true },
+                config_node: { value: '', type: 'tp-config' }
+            },
+            inputs: 0,
+            outputs: 1,
+            outputLabels: ['Cancellation flow'],
+            icon: 'font-awesome/fa-stop',
+            paletteLabel: nodeLabel,
+            label: function () { 
+                return this.name || `Cancel ${this.tp_id}` || 'tp-cancel'
+            },
+            oneditprepare: function() {
+                // Populate tp_id dropdown with available task packages
+                const populateTaskPackages = () => {
+                    const dropdown = $('#node-input-tp_id')
+                    dropdown.empty()
+                    dropdown.append('<option value="">Select task package...</option>')
+                    
+                    // Get task packages from API (task package definitions)
+                    $.get('/task-package')
+                        .done((data) => {
+                            if (Array.isArray(data)) {
+                                data.forEach(pkg => {
+                                    const selected = pkg.id === this.tp_id ? 'selected' : ''
+                                    dropdown.append(`<option value="${pkg.id}" ${selected}>${pkg.id} - ${pkg.name}</option>`)
+                                })
+                            }
+                        })
+                        .fail(() => {
+                            // Fallback: scan existing tp-start nodes in workspace
+                            RED.nodes.eachNode((node) => {
+                                if (node.type === 'tp-start' && node.tp_id) {
+                                    const selected = node.tp_id === this.tp_id ? 'selected' : ''
+                                    const displayName = node.tp_name || node.tp_id
+                                    dropdown.append(`<option value="${node.tp_id}" ${selected}>${node.tp_id} - ${displayName}</option>`)
+                                }
+                            })
+                        })
+                }
+                
+                // Populate on dialog open
+                populateTaskPackages.call(this)
+                
+                // Refresh button functionality
+                $('#refresh-tp-list').on('click', () => {
+                    populateTaskPackages.call(this)
+                })
+            }
+        })
+
+    })()
+</script>
+
+<script type="text/html" data-template-name="tp-cancel">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Task Package Cancel">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-config_node"><i class="fa fa-cogs"></i> Configuration</label>
+        <input type="text" id="node-input-config_node">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-tp_id"><i class="fa fa-tasks"></i> Task Package</label>
+        <select id="node-input-tp_id" style="width: 70%;">
+            <option value="">Select task package...</option>
+        </select>
+        <button type="button" id="refresh-tp-list" class="red-ui-button" style="margin-left: 10px;">
+            <i class="fa fa-refresh"></i> Refresh
+        </button>
+    </div>
+    
+    <div class="form-tips">
+        <p><b>Note:</b> This node will only monitor cancellation events for the selected task package type (tp_id). 
+        It will handle cancellation for all instances of the selected task package in this flow.</p>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="tp-cancel">
+    <p>Handles task package cancellation with no input connection required.</p>
+    
+    <h3>Inputs</h3>
+    <p>None. This node automatically discovers the current task and listens for cancel events from the API.</p>
+    
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>tp_data <span class="property-type">object</span></dt>
+        <dd>Contains cancellation information including the task instance ID and cancellation timestamp.</dd>
+        
+        <dt>payload <span class="property-type">any</span></dt>
+        <dd>The payload from the cancel API request.</dd>
+        
+        <dt>topic <span class="property-type">string</span></dt>
+        <dd>Set to "task-package/{tpc_id}/cancelled".</dd>
+    </dl>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>Name <span class="property-type">string</span></dt>
+        <dd>Optional name for this node instance.</dd>
+        
+        <dt>Task Package <span class="property-type">string</span></dt>
+        <dd>The tp_id of the task package type to monitor. If specified, this node will only handle cancellation events for tasks of this type.</dd>
+        
+        <dt>Configuration <span class="property-type">tp-config</span></dt>
+        <dd>Reference to a tp-config node for system-wide settings.</dd>
+    </dl>
+    
+    <h3>Behavior</h3>
+    <p>This node operates in several phases:</p>
+    <ol>
+        <li><b>Waiting:</b> Node is waiting for tasks of the configured type to start</li>
+        <li><b>Monitoring:</b> One or more tasks of the configured type are active and node is listening for cancel events</li>
+        <li><b>Cancelled:</b> A cancel event was received for a monitored task and cancellation flow is triggered</li>
+    </ol>
+    
+    <h3>Task Package Filtering</h3>
+    <p>When a tp_id is configured:</p>
+    <ul>
+        <li>Only monitors cancellation events for tasks of the specified type</li>
+        <li>Multiple instances of the same task package type can be handled</li>
+        <li>Status shows which task package type is being monitored</li>
+        <li>Provides clear separation of concerns in complex flows</li>
+    </ul>
+    
+    <p>When no tp_id is configured:</p>
+    <ul>
+        <li>Monitors cancellation events for all task packages in the flow</li>
+        <li>Backward compatible with existing flows</li>
+        <li>Useful for flows with only one task package type</li>
+    </ul>
+    
+    <h3>Flow Context Integration</h3>
+    <p>This node works with flow context variables set by tp-start:</p>
+    <ul>
+        <li>Reads <code>current_tpc_id</code> to know which task to monitor</li>
+        <li>Sets <code>task_cancelled = true</code> when cancellation occurs</li>
+        <li>Other tp-* nodes can check this flag to terminate early</li>
+    </ul>
+    
+    <h3>Usage</h3>
+    <p>
+        Configure the node with a specific task package ID, then place it anywhere in your flow - no connections to tp-start required! 
+        It will automatically:
+    </p>
+    <ul>
+        <li>Detect when tasks of the configured type start in the same flow</li>
+        <li>Listen for cancel events for those specific task instances</li>
+        <li>Trigger cancellation flow when needed</li>
+        <li>Set cancellation flags for other nodes to detect</li>
+    </ul>
+    
+    <h3>Design Benefits</h3>
+    <ul>
+        <li><b>Clean Flows:</b> No wiring required from tp-start</li>
+        <li><b>Flexible Placement:</b> Can be placed anywhere in the flow</li>
+        <li><b>Task Type Filtering:</b> Only handles specific task package types</li>
+        <li><b>Parallel Support:</b> Handles multiple instances of the same task type</li>
+        <li><b>Clear Organization:</b> One tp-cancel per task package type for clarity</li>
+    </ul>
+    
+    <h3>API Integration</h3>
+    <p>
+        This node responds to <code>POST /task-package/cancel</code> API calls. 
+        The API validates the request and emits events that this node listens for.
+    </p>
+</script>

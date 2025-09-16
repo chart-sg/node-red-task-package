@@ -1,0 +1,172 @@
+<!-- Task Package Start Node HTML -->
+<script type="text/javascript">
+    // Isolate this code
+    (function () {
+        'use strict'
+
+        const nodeLabel = 'tp-start'
+
+        RED.nodes.registerType(nodeLabel, {
+            category: 'Task Package',
+            color: '#A6BBCF',
+            defaults: {
+                name: { value: '' },
+                tp_id: { value: '', required: true },
+                tp_name: { value: '', required: true },
+                tp_form_url: { value: '' },
+                tp_schema: { value: '' },
+                config_node: { value: '', type: 'tp-config' }
+            },
+            inputs: 0,
+            outputs: 1,
+            outputLabels: ['Task flow'],
+            icon: 'font-awesome/fa-play',
+            paletteLabel: nodeLabel,
+            label: function () { 
+                return this.name || `${this.tp_id} (start)` || nodeLabel 
+            },
+            oneditprepare: function() {
+                // Initialize JSON schema editor if needed
+                if (this.tp_schema) {
+                    try {
+                        const schema = JSON.parse(this.tp_schema)
+                        $('#node-input-tp_schema').val(JSON.stringify(schema, null, 2))
+                    } catch (e) {
+                        // Keep as is if not valid JSON
+                    }
+                }
+            },
+            oneditsave: function() {
+                // Validate JSON schema
+                const schemaText = $('#node-input-tp_schema').val().trim()
+                if (schemaText) {
+                    try {
+                        JSON.parse(schemaText)
+                    } catch (e) {
+                        RED.notify('Invalid JSON schema: ' + e.message, 'error')
+                        return false
+                    }
+                }
+            }
+        })
+
+    })()
+</script>
+
+<script type="text/html" data-template-name="tp-start">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Task Package Start">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-config_node"><i class="fa fa-cogs"></i> Configuration</label>
+        <input type="text" id="node-input-config_node">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-tp_id"><i class="fa fa-key"></i> Task Package ID</label>
+        <input type="text" id="node-input-tp_id" placeholder="tp01">
+        <div class="form-tips">
+            <b>Required:</b> Unique identifier for this task package (e.g., tp01, linen_delivery).
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-tp_name"><i class="fa fa-info-circle"></i> Display Name</label>
+        <input type="text" id="node-input-tp_name" placeholder="Linen Delivery">
+        <div class="form-tips">
+            <b>Required:</b> Human-readable name for this task package.
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-tp_form_url"><i class="fa fa-link"></i> Form URL Path</label>
+        <input type="text" id="node-input-tp_form_url" placeholder="linen_delivery">
+        <div class="form-tips">
+            Dashboard endpoint path (without /dashboard/ prefix). Used to construct form URLs in API responses.
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-tp_schema"><i class="fa fa-code"></i> JSON Schema</label>
+        <textarea id="node-input-tp_schema" rows="10" style="width: 100%; resize: vertical;" placeholder='{\n  "type": "object",\n  "properties": {\n    "room": {"type": "string"}\n  },\n  "required": ["room"]\n}'></textarea>
+        <div class="form-tips">
+            <b>Optional:</b> JSON schema to validate incoming payloads. Leave empty to skip validation.
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="tp-start">
+    <p>Entry point for task package flows. Listens for start events from the API layer.</p>
+    
+    <h3>Inputs</h3>
+    <p>None. This node is triggered by events from the task package API.</p>
+    
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>tp_data <span class="property-type">object</span></dt>
+        <dd>Complete task package data including ID, name, user, status, and payload.</dd>
+        
+        <dt>payload <span class="property-type">any</span></dt>
+        <dd>The original payload from the API request.</dd>
+        
+        <dt>topic <span class="property-type">string</span></dt>
+        <dd>Set to "task-package/{tp_id}/started".</dd>
+    </dl>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>Task Package ID <span class="property-type">string</span></dt>
+        <dd>
+            <b>Required:</b> Unique identifier for this task package. Must match the tp_id used in API calls.
+            Example: "tp01", "linen_delivery"
+        </dd>
+        
+        <dt>Display Name <span class="property-type">string</span></dt>
+        <dd>
+            <b>Required:</b> Human-readable name shown in API responses and logs.
+            Example: "Linen Delivery", "Patient Transport"
+        </dd>
+        
+        <dt>Form URL Path <span class="property-type">string</span></dt>
+        <dd>
+            Dashboard endpoint path for this task package. Used to construct complete URLs in API responses.
+            Do not include "/dashboard/" prefix.
+            Example: "linen_delivery" becomes "http://host:port/dashboard/linen_delivery"
+        </dd>
+        
+        <dt>JSON Schema <span class="property-type">string</span></dt>
+        <dd>
+            <b>Optional:</b> JSON schema to validate incoming payloads. If provided, payloads that don't match 
+            the schema will be rejected. Leave empty to accept any payload.
+        </dd>
+        
+        <dt>Configuration <span class="property-type">tp-config</span></dt>
+        <dd>Reference to a tp-config node for system-wide settings.</dd>
+    </dl>
+    
+    <h3>Flow Context</h3>
+    <p>This node stores the following values in flow context for other task package nodes:</p>
+    <ul>
+        <li><code>current_tpc_id</code> - The generated task instance ID (UUID)</li>
+        <li><code>current_tp_id</code> - The task package ID</li>
+        <li><code>current_tp_name</code> - The task package name</li>
+        <li><code>task_cancelled</code> - Cancellation flag (initially false)</li>
+    </ul>
+    
+    <h3>Usage</h3>
+    <p>
+        Place this node at the beginning of your task package flow. It will automatically listen for 
+        start events matching its tp_id and begin execution when triggered via the API.
+    </p>
+    <p>
+        Only one tp-start node per tp_id should exist in your Node-RED instance to avoid conflicts.
+    </p>
+    
+    <h3>API Integration</h3>
+    <p>
+        This node responds to <code>POST /task-package/start</code> API calls with matching tp_id.
+        The API layer validates security and emits events that this node listens for.
+    </p>
+</script>

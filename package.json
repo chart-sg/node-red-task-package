@@ -1,22 +1,36 @@
 {
   "name": "@chart/node-red-task-package",
   "version": "1.0.0",
-  "description": "CHART's Node-RED Task Package Nodes",
+  "description": "CHART's Node-RED Task Package Orchestrator",
   "license": "ISC",
   "author": "CHART",
   "type": "commonjs",
   "main": "index.js",
   "keywords": [
     "node-red",
-    "rmf",
-    "chart",
-    "task package"
+    "task-package",
+    "workflow",
+    "orchestrator",
+    "chart"
   ],
   "node-red": {
     "version": ">=1.3.0",
     "nodes": {
-      "test-node": "nodes/test-node.js"
+      "tp-config": "nodes/tp-config.js",
+      "tp-start": "nodes/tp-start.js",
+      "tp-cancel": "nodes/tp-cancel.js",
+      "tp-end": "nodes/tp-end.js",
+      "tp-update": "nodes/tp-update.js",
+      "tp-delay": "nodes/tp-delay.js"
     }
+  },
+  "dependencies": {
+    "ajv": "^8.12.0",
+    "axios": "^1.5.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.0",
+    "sqlite3": "^5.1.0",
+    "uuid": "^9.0.0"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

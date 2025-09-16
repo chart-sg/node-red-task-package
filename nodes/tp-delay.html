@@ -1,0 +1,87 @@
+<!-- Task Package Delay Node HTML -->
+<script type="text/javascript">
+(function () {
+    'use strict'
+    
+    RED.nodes.registerType('tp-delay', {
+        category: 'Task Package',
+        color: '#DEBD85',
+        defaults: {
+            name: { value: '' },
+            delay_time: { value: 5000, validate: RED.validators.number() },
+            config_node: { value: '', type: 'tp-config' }
+        },
+        inputs: 1,
+        outputs: 2,
+        inputLabels: ['Task data'],
+        outputLabels: ['Completed', 'Cancelled'],
+        icon: 'font-awesome/fa-clock-o',
+        paletteLabel: 'tp-delay',
+        label: function () { 
+            return this.name || `delay ${this.delay_time}ms` || 'tp-delay'
+        }
+    })
+})()
+</script>
+
+<script type="text/html" data-template-name="tp-delay">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Task Package Delay">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-config_node"><i class="fa fa-cogs"></i> Configuration</label>
+        <input type="text" id="node-input-config_node">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-delay_time"><i class="fa fa-clock-o"></i> Delay Time (ms)</label>
+        <input type="number" id="node-input-delay_time" placeholder="5000" min="0">
+        <div class="form-tips">
+            Delay duration in milliseconds. Default: 5000ms (5 seconds).
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="tp-delay">
+    <p>Introduces a cancellable delay in task package flows with dual outputs.</p>
+    
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>tp_data <span class="property-type">object</span></dt>
+        <dd><b>Required:</b> Task package data containing task information.</dd>
+    </dl>
+    
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>Output 1: Completed <span class="property-type">object</span></dt>
+        <dd>Original message sent after delay completes normally.</dd>
+        
+        <dt>Output 2: Cancelled <span class="property-type">object</span></dt>
+        <dd>Message sent if task is cancelled during delay period.</dd>
+    </dl>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>Delay Time <span class="property-type">number</span></dt>
+        <dd>Delay duration in milliseconds. Must be a positive number.</dd>
+    </dl>
+    
+    <h3>Behavior</h3>
+    <ul>
+        <li>Starts delay timer when message received</li>
+        <li>Monitors flow context for cancellation during delay</li>
+        <li>Routes to appropriate output based on completion type</li>
+    </ul>
+    
+    <h3>Usage Example</h3>
+    <pre>
+[tp-start] → [tp-delay] → [next-step] (Output 1)
+                ↓
+         [cleanup-logic] (Output 2)
+    </pre>
+    
+    <h3>Cancellation Support</h3>
+    <p>This node continuously monitors the flow context <code>task_cancelled</code> flag during the delay period and will immediately terminate and route to Output 2 if cancellation is detected.</p>
+</script>
