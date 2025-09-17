@@ -102,7 +102,19 @@ function nodeInstance(config) {
     
     this.name = config.name || 'tp-delay'
     this.delay_time = parseInt(config.delay_time) || 5000
-    this.config_node = RED.nodes.getNode(config.config_node)
+    
+    /** Helper function to find the first available tp-config node */
+    this.findTpConfigNode = function() {
+        const configNodes = RED.nodes.getType('tp-config')
+        return configNodes.length > 0 ? configNodes[0] : null
+    }
+    
+    // Auto-find tp-config node if not explicitly set
+    this.config_node = RED.nodes.getNode(config.config_node) || this.findTpConfigNode()
+    
+    if (!this.config_node) {
+        this.warn('No tp-config node found. Please add a tp-config node to your workspace.')
+    }
     
     this.status({fill: 'blue', shape: 'ring', text: `Ready (${this.delay_time}ms)`})
     this.on('input', inputMsgHandler)

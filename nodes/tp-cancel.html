@@ -1,15 +1,14 @@
 <!-- Task Package Cancel Node HTML -->
 <script type="text/javascript">
-    // Isolate this code
-    (function () {
-        'use strict'
+(function () {
+    'use strict'
 
-        const nodeLabel = 'tp-cancel'
+    const nodeLabel = 'tp-cancel'
 
-        RED.nodes.registerType(nodeLabel, {
-            category: 'Task Package',
-            color: '#F3B567',
-            defaults: {
+    RED.nodes.registerType(nodeLabel, {
+        category: 'Task Package',
+        color: '#F3B567',
+        defaults: {
                 name: { value: '' },
                 tp_id: { value: '', required: true },
                 config_node: { value: '', type: 'tp-config' }
@@ -29,26 +28,14 @@
                     dropdown.empty()
                     dropdown.append('<option value="">Select task package...</option>')
                     
-                    // Get task packages from API (task package definitions)
-                    $.get('/task-package')
-                        .done((data) => {
-                            if (Array.isArray(data)) {
-                                data.forEach(pkg => {
-                                    const selected = pkg.id === this.tp_id ? 'selected' : ''
-                                    dropdown.append(`<option value="${pkg.id}" ${selected}>${pkg.id} - ${pkg.name}</option>`)
-                                })
-                            }
-                        })
-                        .fail(() => {
-                            // Fallback: scan existing tp-start nodes in workspace
-                            RED.nodes.eachNode((node) => {
-                                if (node.type === 'tp-start' && node.tp_id) {
-                                    const selected = node.tp_id === this.tp_id ? 'selected' : ''
-                                    const displayName = node.tp_name || node.tp_id
-                                    dropdown.append(`<option value="${node.tp_id}" ${selected}>${node.tp_id} - ${displayName}</option>`)
-                                }
-                            })
-                        })
+                    // Scan existing tp-start nodes in workspace for task packages
+                    RED.nodes.eachNode((node) => {
+                        if (node.type === 'tp-start' && node.tp_id) {
+                            const selected = node.tp_id === this.tp_id ? 'selected' : ''
+                            const displayName = node.tp_name || node.tp_id
+                            dropdown.append(`<option value="${node.tp_id}" ${selected}>${node.tp_id} - ${displayName}</option>`)
+                        }
+                    })
                 }
                 
                 // Populate on dialog open
@@ -68,11 +55,6 @@
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Task Package Cancel">
-    </div>
-    
-    <div class="form-row">
-        <label for="node-input-config_node"><i class="fa fa-cogs"></i> Configuration</label>
-        <input type="text" id="node-input-config_node">
     </div>
     
     <div class="form-row">
@@ -116,9 +98,7 @@
         
         <dt>Task Package <span class="property-type">string</span></dt>
         <dd>The tp_id of the task package type to monitor. If specified, this node will only handle cancellation events for tasks of this type.</dd>
-        
-        <dt>Configuration <span class="property-type">tp-config</span></dt>
-        <dd>Reference to a tp-config node for system-wide settings.</dd>
+    </dl>
     </dl>
     
     <h3>Behavior</h3>
