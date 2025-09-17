@@ -12,6 +12,9 @@
             defaults: {
                 name: { value: '' },
                 keycloak_url: { value: '' },
+                keycloak_host: { value: '' },
+                keycloak_port: { value: 8080, validate: RED.validators.number() },
+                keycloak_realm: { value: 'chart-sandbox' },
                 db_url: { value: '/tmp/sqlite' },
                 host_url: { value: 'localhost' },
                 host_port: { value: 1880, validate: RED.validators.number() }
@@ -19,7 +22,29 @@
             label: function () {
                 return this.name || 'Task Package Config'
             },
-            icon: 'font-awesome/fa-cogs'
+            icon: 'font-awesome/fa-cogs',
+            oneditprepare: function() {
+                // Auto-update Keycloak URL when components change
+                function updateKeycloakUrl() {
+                    const host = $('#node-config-input-keycloak_host').val();
+                    const port = $('#node-config-input-keycloak_port').val();
+                    const realm = $('#node-config-input-keycloak_realm').val();
+                    
+                    if (host && port && realm) {
+                        const fullUrl = `http://${host}:${port}/realms/${realm}/protocol/openid-connect/userinfo`;
+                        $('#keycloak-url-preview').text(fullUrl);
+                        $('#keycloak-url-preview').show();
+                    } else {
+                        $('#keycloak-url-preview').hide();
+                    }
+                }
+                
+                // Bind change events
+                $('#node-config-input-keycloak_host, #node-config-input-keycloak_port, #node-config-input-keycloak_realm').on('input change', updateKeycloakUrl);
+                
+                // Initial update
+                updateKeycloakUrl();
+            }
         })
 
     })()
@@ -32,10 +57,53 @@
     </div>
     
     <div class="form-row">
-        <label for="node-config-input-keycloak_url"><i class="fa fa-shield"></i> Keycloak URL</label>
-        <input type="text" id="node-config-input-keycloak_url" placeholder="http://10.233.0.80:8080/realms/chart-sandbox/protocol/openid-connect/userinfo">
+        <label for="node-config-input-keycloak_url"><i class="fa fa-key"></i> OIDC Provider URL (Optional)</label>
+        <input type="text" id="node-config-input-keycloak_url" placeholder="http://10.233.0.80:8080/realms/chart-sandbox">
         <div class="form-tips">
-            <b>Optional:</b> Keycloak userinfo endpoint for authentication. Leave empty to disable security.
+            <strong>Optional:</strong> Complete OIDC provider URL. Use this for advanced setups or non-Keycloak providers.<br>
+            <strong>Examples:</strong><br>
+            • Keycloak: <code>http://host:8080/realms/realm-name</code><br>
+            • Auth0: <code>https://your-domain.auth0.com</code><br>
+            • Azure AD: <code>https://login.microsoftonline.com/tenant-id</code><br>
+            • Okta: <code>https://your-domain.okta.com</code>
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <div style="margin-bottom: 10px;"><strong>Configure Keycloak components:</strong></div>
+        
+        <div style="display: grid; grid-template-columns: 2fr 1fr 2fr; gap: 15px; align-items: end; margin-bottom: 10px;">
+            <div>
+                <label for="node-config-input-keycloak_host" style="display: block; margin-bottom: 5px; font-weight: normal;">
+                    <i class="fa fa-server"></i> Host
+                </label>
+                <input type="text" id="node-config-input-keycloak_host" placeholder="10.233.0.80" style="width: 100%; box-sizing: border-box;">
+            </div>
+            <div>
+                <label for="node-config-input-keycloak_port" style="display: block; margin-bottom: 5px; font-weight: normal;">
+                    <i class="fa fa-plug"></i> Port
+                </label>
+                <input type="number" id="node-config-input-keycloak_port" placeholder="8080" min="1" max="65535" style="width: 100%; box-sizing: border-box;">
+            </div>
+            <div>
+                <label for="node-config-input-keycloak_realm" style="display: block; margin-bottom: 5px; font-weight: normal;">
+                    <i class="fa fa-key"></i> Realm
+                </label>
+                <input type="text" id="node-config-input-keycloak_realm" placeholder="chart-sandbox" style="width: 100%; box-sizing: border-box;">
+            </div>
+        </div>
+        
+        <div class="form-tips" style="margin-top: 10px;">
+            Components will auto-generate the Keycloak URL. Leave Host empty to use the base URL above instead.
+        </div>
+        
+        <div id="keycloak-url-preview" style="display: none; margin-top: 10px; padding: 10px; background: #e8f5e8; border: 1px solid #c3e6c3; border-radius: 4px;">
+            <div style="margin-bottom: 5px; font-weight: bold; color: #2d5016;">
+                <i class="fa fa-check-circle"></i> Generated Keycloak URL:
+            </div>
+            <div style="font-family: monospace; font-size: 12px; color: #1a1a1a; word-break: break-all; padding: 5px; background: white; border-radius: 3px; border: 1px solid #ddd;">
+                <span></span>
+            </div>
         </div>
     </div>
     

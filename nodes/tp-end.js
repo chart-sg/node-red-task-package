@@ -77,12 +77,11 @@ async function inputMsgHandler(msg, send, done) {
             completed_at: new Date().toISOString()
         }
         
-        // Update database with final status
+        // Update database with final status (only status, not user_status)
         try {
             const dbConfig = flow.get('tp_config') || {}
             const taskPackageDB = require('../lib/task-package-db')
-            await taskPackageDB.updateTaskStatus(tpc_id, finalStatus, 
-                wasCancelled ? 'Task was cancelled' : 'Task completed successfully')
+            await taskPackageDB.updateTaskStatus(tpc_id, finalStatus)
             
             if (mod.debug) {
                 node.log(`Database updated: ${tpc_id} -> ${finalStatus}`)

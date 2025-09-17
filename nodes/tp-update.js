@@ -23,7 +23,7 @@ const mod = {
 
 //#region ----- Module-level support functions ----- //
 
-function inputMsgHandler(msg, send, done) {
+async function inputMsgHandler(msg, send, done) {
     const node = this
     
     try {
@@ -33,11 +33,42 @@ function inputMsgHandler(msg, send, done) {
             return
         }
         
-        // Get user status from node config or message
-        const userStatus = node.user_status || msg.user_status || 'Status updated'
+        const tpc_id = msg.tp_data.id
+        if (!tpc_id) {
+            node.error('No task instance ID found in tp_data', msg)
+            done()
+            return
+        }
         
-        // TODO: Update database user_status column
-        // This will be implemented when we add database integration
+        // Get user status from node config, message payload.update, or message user_status
+        let userStatus = node.user_status || ''
+        
+        // Check for update in msg.payload.update (highest priority)
+        if (msg.payload && msg.payload.update) {
+            userStatus = msg.payload.update
+        } else if (msg.user_status) {
+            userStatus = msg.user_status
+        }
+        
+        if (!userStatus) {
+            node.warn('No user status to update - use msg.payload.update, msg.user_status, or node configuration')
+            done()
+            return
+        }
+        
+        // Update database user_status column
+        try {
+            const taskPackageDB = require('../lib/task-package-db')
+            await taskPackageDB.updateUserStatus(tpc_id, userStatus)
+            
+            if (mod.debug) {
+                node.log(`Database updated: ${tpc_id} user_status -> ${userStatus}`)
+            }
+        } catch (dbError) {
+            node.error(`Failed to update database: ${dbError.message}`, msg)
+            done(dbError)
+            return
+        }
         
         // Update tp_data with user status
         const updatedTpData = {
@@ -51,16 +82,18 @@ function inputMsgHandler(msg, send, done) {
             tp_data: updatedTpData
         }
         
-        node.status({fill: 'green', shape: 'dot', text: `Updated: ${userStatus}`})
+        node.status({fill: 'green', shape: 'dot', text: `Updated: ${userStatus.substring(0, 20)}...`})
         
         if (mod.debug) {
             node.log(`Updated user status: ${userStatus}`)
         }
         
+        send(updatedMsg)
         done()
         
     } catch (error) {
         node.error(`Error updating status: ${error.message}`, msg)
+        node.status({fill: 'red', shape: 'ring', text: 'Error'})
         done(error)
     }
 }
