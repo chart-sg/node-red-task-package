@@ -35,7 +35,7 @@ function inputMsgHandler(msg, send, done) {
         
         const flow = node.context().flow
         const delayMs = node.delay_time || 5000
-        const tpc_id = msg.tp_data.id
+        const tpc_id = msg.tp_data.tpc_id
         
         if (!tpc_id) {
             node.error('No task instance ID found in tp_data', msg)

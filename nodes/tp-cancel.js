@@ -77,7 +77,7 @@ function handleCancelEvent(payload, tpc_id) {
         // Create output message for cancellation flow
         const msg = {
             tp_data: {
-                id: tpc_id,
+                tpc_id: tpc_id,
                 tp_id: task.tp_id,
                 tp_name: task.tp_name,
                 mode: 'cancel',

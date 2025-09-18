@@ -81,7 +81,7 @@ function handleStartEvent(payload) {
         
         // Create msg.tp_data object
         const tp_data = {
-            id: tpc_id,
+            tpc_id: tpc_id,
             tp_id: node.tp_id,
             tp_name: node.tp_name,
             user: payload.user,

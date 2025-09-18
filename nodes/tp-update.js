@@ -33,7 +33,7 @@ async function inputMsgHandler(msg, send, done) {
             return
         }
         
-        const tpc_id = msg.tp_data.id
+        const tpc_id = msg.tp_data.tpc_id
         if (!tpc_id) {
             node.error('No task instance ID found in tp_data', msg)
             done()

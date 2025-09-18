@@ -1,0 +1,18 @@
+{
+    "id": "tp-data-get",
+    "type": "tp-data-get", 
+    "name": "Get Task Data",
+    "info": "Retrieves stored task data for enriching cancel/update flows",
+    "category": "Task Package",
+    "color": "#B3D9FF",
+    "inputs": 1,
+    "outputs": 1,
+    "icon": "font-awesome/fa-search",
+    "defaults": {
+        "name": { "value": "" },
+        "key_field": { "value": "tp_data.tpc_id" },
+        "output_field": { "value": "stored_data" },
+        "fail_on_missing": { "value": true },
+        "cleanup_on_get": { "value": false }
+    }
+}

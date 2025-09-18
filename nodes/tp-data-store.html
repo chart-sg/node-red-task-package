@@ -1,0 +1,114 @@
+<!-- Task Package Data Store Node HTML -->
+<script type="text/javascript">
+(function () {
+    'use strict'
+    
+    RED.nodes.registerType('tp-data-store', {
+        category: 'Task Package',
+        color: '#C7E9B4',
+        defaults: {
+            name: { value: '' },
+            ttl: { value: 3600000, validate: RED.validators.number() },
+            key_field: { value: 'tp_data.tpc_id' },
+            auto_cleanup: { value: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        inputLabels: ['Data to store'],
+        outputLabels: ['Passthrough'],
+        icon: 'font-awesome/fa-database',
+        paletteLabel: 'tp-data-store',
+        label: function () { 
+            return this.name || `store (TTL: ${this.ttl/1000}s)` || 'tp-data-store'
+        }
+    })
+})()
+</script>
+
+<script type="text/html" data-template-name="tp-data-store">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Task Package Data Store">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-key_field"><i class="fa fa-key"></i> Storage Key Field</label>
+        <input type="text" id="node-input-key_field" placeholder="tp_data.tpc_id">
+        <div class="form-tips">
+            Message property path to use as storage key (e.g., tp_data.tpc_id, payload.task_id)
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-ttl"><i class="fa fa-clock-o"></i> TTL (milliseconds)</label>
+        <input type="number" id="node-input-ttl" placeholder="3600000" min="1000">
+        <div class="form-tips">
+            Time-to-live in milliseconds. Default: 3600000 (1 hour)
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-auto_cleanup">&nbsp;</label>
+        <input type="checkbox" id="node-input-auto_cleanup" style="display: inline-block; width: auto; vertical-align: top;">
+        <label for="node-input-auto_cleanup" style="width: 70%;"> Enable automatic cleanup</label>
+        <div class="form-tips">
+            Automatically removes expired entries every 5 minutes
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="tp-data-store">
+    <p>Stores task data in global context with configurable TTL for memory management.</p>
+    
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd>Data to store in global context</dd>
+        
+        <dt>tp_data.tpc_id <span class="property-type">string</span></dt>
+        <dd>Default storage key (configurable via Storage Key Field)</dd>
+    </dl>
+    
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd>Original message passed through unchanged</dd>
+    </dl>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>Storage Key Field <span class="property-type">string</span></dt>
+        <dd>Message property path to use as storage key</dd>
+        
+        <dt>TTL <span class="property-type">number</span></dt>
+        <dd>Time-to-live in milliseconds before data expires</dd>
+        
+        <dt>Auto Cleanup <span class="property-type">boolean</span></dt>
+        <dd>Enable automatic cleanup of expired entries</dd>
+    </dl>
+    
+    <h3>Storage Format</h3>
+    <p>Data is stored in global context with this structure:</p>
+    <pre>
+{
+  "tp01_123": {
+    "data": { /* your payload data */ },
+    "metadata": {
+      "tp_id": "tp01",
+      "user": "user@example.com",
+      "created_at": "2025-09-17T10:00:00Z"
+    },
+    "stored_at": 1695820800000,
+    "expires_at": 1695824400000
+  }
+}
+    </pre>
+    
+    <h3>Usage Example</h3>
+    <pre>
+[tp-start] → [RMF Response] → [tp-data-store]
+    </pre>
+    
+    <h3>Memory Management</h3>
+    <p>Automatic cleanup prevents memory bloat by removing expired entries. TTL can be configured based on your task duration requirements.</p>
+</script>

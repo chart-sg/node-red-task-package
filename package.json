@@ -21,7 +21,9 @@
       "tp-cancel": "nodes/tp-cancel.js",
       "tp-end": "nodes/tp-end.js",
       "tp-update": "nodes/tp-update.js",
-      "tp-delay": "nodes/tp-delay.js"
+      "tp-delay": "nodes/tp-delay.js",
+      "tp-data-store": "nodes/tp-data-store.js",
+      "tp-data-get": "nodes/tp-data-get.js"
     }
   },
   "dependencies": {

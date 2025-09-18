@@ -1,0 +1,17 @@
+{
+    "id": "tp-data-store",
+    "type": "tp-data-store",
+    "name": "Store Task Data",
+    "info": "Stores task data with TTL for later retrieval by tp-cancel or other nodes",
+    "category": "Task Package",
+    "color": "#C7E9B4",
+    "inputs": 1,
+    "outputs": 1,
+    "icon": "font-awesome/fa-database",
+    "defaults": {
+        "name": { "value": "" },
+        "ttl": { "value": 3600000 },
+        "key_field": { "value": "tp_data.tpc_id" },
+        "auto_cleanup": { "value": true }
+    }
+}
