@@ -50,7 +50,7 @@ The **node-red-task-package** module is a workflow orchestrator that provides a 
 sequenceDiagram
     participant Client
     participant API
-    participant Keycloak
+    participant OIDC
     participant Flow
 
     Client->>API: POST /task-package/start
@@ -58,10 +58,10 @@ sequenceDiagram
     
     API->>API: Validate tp_id & user in payload
     
-    alt Keycloak URL configured
-        API->>Keycloak: GET /userinfo
-        Note over API,Keycloak: Bearer token validation
-        Keycloak->>API: User info with tp_allowed array
+    alt OIDC URL configured
+        API->>OIDC: GET /userinfo
+        Note over API,OIDC: Bearer token validation
+        OIDC->>API: User info with tp_allowed array
         API->>API: Check if tp_id in tp_allowed
     end
     
@@ -81,10 +81,22 @@ sequenceDiagram
     {
         "id": "tp01",
         "name": "linen_delivery", 
-        "form_url": "http://localhost:1880/dashboard/linen_delivery"
+        "form_url": "http://localhost:1880/dashboard/linen_delivery",
+        "created_at": "2025-09-18 04:35:42",
+        "updated_at": "2025-09-18 04:35:42"
     }
 ]
 ```
+
+**Note**: The `form_url` is automatically constructed using the `host_url` and `host_port` from tp-config configuration: `{host_url}:{host_port}/dashboard/{form_url_path}`
+
+#### GET `/task-package`
+**Purpose**: List all available task package definitions
+
+**Query Parameters**:
+- `tp_id` (optional): Get specific task package by ID
+
+**Response Format**: Same as `/task-package/status` with complete form URLs constructed
 
 #### GET `/task-package/status/:tpc_id`
 **Purpose**: Get specific task package instance status
@@ -130,8 +142,7 @@ sequenceDiagram
 ```json
 {
     "tp_id": "tp01",
-    "tpc_id": "550e8400-e29b-41d4-a716-446655440000",
-    "user": "sbrow"
+    "tpc_id": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
@@ -143,8 +154,9 @@ sequenceDiagram
 **Purpose**: Global configuration for task package system
 
 **Configuration Properties**:
-- `keycloak_url`: Keycloak userinfo endpoint (optional)
-  - Example: `http://10.233.0.80:8080/realms/chart-sandbox/protocol/openid-connect/userinfo`
+- `oidc_url`: OIDC provider URL (optional)
+  - Auto-detects provider type (Keycloak, Auth0, Azure AD, Okta, Google, AWS Cognito)
+  - Example: `http://10.233.0.80:8080/realms/chart-sandbox`
   - If empty, security layer is bypassed
 - `db_url`: Database file path (default: `/tmp/sqlite`)
 - `host_url`: Base URL for form generation (default: `localhost`)
@@ -160,7 +172,7 @@ sequenceDiagram
 
 **Configuration**:
 - `tp_id`: Unique task package identifier (e.g., "tp01")
-- `tp_name`: Human-readable name (e.g., "linen_delivery")  
+- `tp_name`: Human-readable name (e.g., "Linen Delivery")  
 - `tp_form_url`: Dashboard endpoint path (e.g., "linen_delivery")
 - `tp_schema`: JSON schema for payload validation
 
@@ -206,7 +218,7 @@ taskPackageDB.upsertTaskPackage(this.tp_id, this.tp_name, this.tp_form_url)
 **Message Output**:
 ```javascript
 msg.tp_data = {
-    id: "tpc_id",
+    tpc_id: "550e8400-e29b-41d4-a716-446655440000",
     tp_id: "tp01",
     tp_name: "linen_delivery",
     user: "sbrow",
@@ -233,7 +245,7 @@ msg.payload = {
 
 **Behavior**:
 1. Receives `msg.tp_data` via message passing from upstream nodes
-2. Identifies specific task by `msg.tp_data.id` (tpc_id)
+2. Identifies specific task by `msg.tp_data.tpc_id`
 3. Finds task in active_tasks array or checks legacy context
 4. Determines cancellation status for this specific task
 5. Updates status to 'completed' or 'cancelled' in database
@@ -242,7 +254,7 @@ msg.payload = {
 
 **Parallel Task Handling**:
 ```javascript
-const tpc_id = msg.tp_data.id
+const tpc_id = msg.tp_data.tpc_id
 const active_tasks = flow.get('active_tasks') || []
 const task_index = active_tasks.findIndex(task => task.tpc_id === tpc_id)
 
@@ -318,7 +330,7 @@ function handleCancelEvent(payload, tpc_id) {
         // Output cancellation message
         node.send({
             tp_data: {
-                id: tpc_id,
+                tpc_id: tpc_id,
                 tp_id: task.tp_id,
                 mode: 'cancel',
                 cancelled_at: task.cancelled_at
@@ -352,7 +364,7 @@ function handleCancelEvent(payload, tpc_id) {
 
 **Behavior**:
 1. Starts delay timer on message receipt
-2. Extracts `tpc_id` from `msg.tp_data.id`
+2. Extracts `tpc_id` from `msg.tp_data.tpc_id`
 3. Monitors task-specific cancellation via active_tasks array
 4. Supports both new parallel format and legacy single-task format
 5. Output 1: Normal completion after delay
@@ -361,7 +373,7 @@ function handleCancelEvent(payload, tpc_id) {
 **Task-Specific Cancellation Checking**:
 ```javascript
 const isTaskCancelled = () => {
-    const tpc_id = msg.tp_data.id
+    const tpc_id = msg.tp_data.tpc_id
     const active_tasks = flow.get('active_tasks') || []
     const task = active_tasks.find(t => t.tpc_id === tpc_id)
     
@@ -385,6 +397,67 @@ const cancelCheck = setInterval(() => {
         done()
     }
 }, 100)
+```
+
+#### Data Storage Nodes
+
+##### `tp-data-store` (Task Data Storage)
+- **Inputs**: 1 (data to store)
+- **Outputs**: 1 (pass-through)
+- **Purpose**: Store task data in global context for cross-flow sharing
+
+**Configuration**:
+- `storage_key`: Key field path in message (default: `tp_data.tpc_id`)
+- `ttl_minutes`: Time-to-live in minutes (default: 60)
+- `cleanup_interval`: Cleanup interval in minutes (default: 5)
+
+**Behavior**:
+1. Extracts storage key from incoming message using dot notation
+2. Stores entire message in global context with TTL metadata
+3. Automatically cleans up expired entries
+4. Passes message through unchanged
+
+**Storage Structure**:
+```javascript
+// Global context storage
+globalContext.set('tp-data-store', {
+    'tpc_123': {
+        data: {msg}, // Complete message object
+        expires_at: 1726657200000, // Timestamp
+        stored_at: 1726653600000
+    }
+})
+```
+
+##### `tp-data-get` (Task Data Retrieval)
+- **Inputs**: 1 (lookup request)
+- **Outputs**: 1 (enriched data)
+- **Purpose**: Retrieve stored task data and merge with current message
+
+**Configuration**:
+- `key_field`: Key field path in message (default: `tp_data.tpc_id`)
+- `output_field`: Output field path (default: `stored_data`)
+- `fail_on_missing`: Fail if data not found (default: true)
+- `cleanup_on_get`: Remove data after retrieval (default: false)
+
+**Behavior**:
+1. Extracts lookup key from incoming message
+2. Retrieves stored data from global context
+3. Checks TTL and removes expired data
+4. Merges stored data into output field using dot notation
+5. Optionally removes data after retrieval
+
+**Output Structure**:
+```javascript
+// Enhanced message with stored data
+{
+    ...original_message,
+    stored_data: {
+        tp_data: {...},
+        payload: {...},
+        // Complete stored message
+    }
+}
 ```
 
 ### Event System
@@ -448,7 +521,7 @@ active_tasks.forEach(task => {
 })
 
 // tp-delay: Check task-specific cancellation
-const task = active_tasks.find(t => t.tpc_id === msg.tp_data.id)
+const task = active_tasks.find(t => t.tpc_id === msg.tp_data.tpc_id)
 if (task && task.cancelled) { /* handle cancellation */ }
 
 // tp-end: Remove completed task
@@ -572,16 +645,42 @@ Task B: [tp-start:tp02] ──→ [step-1] ──→ [tp-delay] ──→ [step-
                                 └─→ (status: "processing step 1")
 ```
 
+### Cross-Flow Data Sharing
+```
+Flow 1: [tp-start] ──→ [business logic] ──→ [tp-data-store] ──→ [tp-end]
+
+Flow 2: [tp-cancel] ──→ [tp-data-get] ──→ [cleanup with stored data]
+                         │
+                         └─→ enriched with original task data
+```
+
+### Complex Data Persistence Pattern
+```
+Main Flow:   [tp-start] ──→ [tp-data-store] ──→ [process] ──→ [tp-end]
+                            │
+Cancel Flow: [tp-cancel] ──→ [tp-data-get] ──→ [restore state] ──→ [cleanup]
+Update Flow: [external] ──→ [tp-data-get] ──→ [status check] ──→ [respond]
+```
+
 ## Security Model
 
-### Keycloak Integration
-When `keycloak_url` is configured in `tp-config`:
+### OIDC Integration
+When `oidc_url` is configured in `tp-config`:
 
-1. **Token Validation**: Bearer tokens validated against Keycloak
-2. **Authorization Check**: User's `tp_allowed` array checked for `tp_id`
-3. **User Context**: User information attached to task execution
+1. **Auto-Detection**: Automatically detects OIDC provider type (Keycloak, Auth0, Azure AD, Okta, Google, AWS Cognito)
+2. **Token Validation**: Bearer tokens validated against the OIDC provider's userinfo endpoint
+3. **Authorization Check**: User's `tp_allowed` array checked for `tp_id`
+4. **User Context**: User information attached to task execution
 
-### Sample Keycloak Response
+### Supported OIDC Providers
+- **Keycloak**: Auto-detects `/protocol/openid-connect/userinfo` endpoint
+- **Auth0**: Auto-detects `/userinfo` endpoint
+- **Azure AD**: Auto-detects `/oidc/userinfo` endpoint
+- **Okta**: Auto-detects `/v1/userinfo` endpoint
+- **Google**: Uses `https://www.googleapis.com/oauth2/v2/userinfo`
+- **AWS Cognito**: Auto-detects `/oauth2/userInfo` endpoint
+
+### Sample OIDC Response
 ```json
 {
     "tp_allowed": ["tp01", "tp02", "tp03"],
@@ -599,7 +698,7 @@ When `keycloak_url` is configured in `tp-config`:
 ```
 
 ### Security Bypass
-When `keycloak_url` is not configured, the security layer is completely bypassed for development/testing scenarios.
+When `oidc_url` is not configured, the security layer is completely bypassed for development/testing scenarios.
 
 ## Implementation Notes
 
@@ -718,7 +817,13 @@ Internal event system uses Node-RED's native message passing with standardized t
 - **Cross-Flow Communication**: Task packages spanning multiple flows
 - **Priority Queuing**: Task execution priority management
 
-### Recently Implemented (v2.0)
+### Recently Implemented (v2.1)
+- ✅ **Simplified OIDC Configuration**: Removed Keycloak-specific components, generic OIDC provider support
+- ✅ **Multi-Provider OIDC**: Auto-detection for Keycloak, Auth0, Azure AD, Okta, Google, AWS Cognito
+- ✅ **Cross-Flow Data Storage**: tp-data-store and tp-data-get nodes with TTL management
+- ✅ **Field Naming Clarity**: Refactored tp_data.id to tp_data.tpc_id for better readability
+- ✅ **Complete Form URLs**: API endpoints return fully constructed dashboard URLs
+- ✅ **Configuration Auto-Discovery**: Only tp-start nodes show configuration dropdown
 - ✅ **Parallel Task Execution**: Multiple tasks per flow  
 - ✅ **Auto-Discovery Cancellation**: tp-cancel monitors all active tasks
 - ✅ **Dynamic Payload Processing**: Flexible API parameter handling
@@ -765,6 +870,6 @@ Internal event system uses Node-RED's native message passing with standardized t
 
 *This document serves as the authoritative reference for the node-red-task-package module design and implementation.*
 
-**Document Version**: 2.0  
-**Last Updated**: September 16, 2025  
-**Key Changes**: Added parallel task execution, auto-discovery cancellation, dynamic payload processing, and enhanced event system architecture.
+**Document Version**: 2.1  
+**Last Updated**: September 18, 2025  
+**Key Changes**: Added tp-data storage nodes, simplified OIDC configuration with multi-provider support, improved field naming clarity (tpc_id), complete form URL construction, and configuration auto-discovery.

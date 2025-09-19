@@ -47,23 +47,15 @@ function nodeInstance(config) {
     // Transfer config items from the Editor panel to the runtime
     this.name = config.name || 'Task Package Config'
     this.keycloak_url = config.keycloak_url || ''
-    this.keycloak_host = config.keycloak_host || ''
-    this.keycloak_port = config.keycloak_port || 8080
-    this.keycloak_realm = config.keycloak_realm || 'chart-sandbox'
     this.db_url = config.db_url || '/tmp/sqlite'
     this.host_url = config.host_url || 'localhost'
     this.host_port = config.host_port || 1880
     
-    // Build OIDC provider URL from components if not provided directly
-    let finalKeycloakUrl = this.keycloak_url
-    if (!finalKeycloakUrl && this.keycloak_host) {
-        // Build base realm URL (API will auto-detect the correct userinfo endpoint)
-        finalKeycloakUrl = `http://${this.keycloak_host}:${this.keycloak_port}/realms/${this.keycloak_realm}`
-        this.log(`🔧 Built OIDC provider URL from components: ${finalKeycloakUrl}`)
-    }
+    // Use the OIDC provider URL directly
+    const finalOidcUrl = this.keycloak_url
 
     // Validate configuration
-    if (finalKeycloakUrl && !finalKeycloakUrl.startsWith('http')) {
+    if (finalOidcUrl && !finalOidcUrl.startsWith('http')) {
         this.warn('OIDC provider URL should start with http:// or https://')
     }
     
@@ -80,7 +72,7 @@ function nodeInstance(config) {
             
             // Initialize API routes
             taskPackageAPI.initializeRoutes(app, {
-                keycloak_url: finalKeycloakUrl,
+                keycloak_url: finalOidcUrl,
                 db_url: this.db_url,
                 host_url: this.host_url,
                 host_port: this.host_port
@@ -101,8 +93,7 @@ function nodeInstance(config) {
     
     if (mod.debug) {
         this.log(`Config loaded: ${JSON.stringify({
-            keycloak_url: finalKeycloakUrl ? '***configured***' : 'none',
-            keycloak_components: this.keycloak_host ? `${this.keycloak_host}:${this.keycloak_port}/${this.keycloak_realm}` : 'none',
+            oidc_url: finalOidcUrl ? '***configured***' : 'none',
             db_url: this.db_url,
             host_url: this.host_url,
             host_port: this.host_port
