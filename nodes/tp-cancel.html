@@ -7,7 +7,7 @@
 
     RED.nodes.registerType(nodeLabel, {
         category: 'Task Package',
-        color: '#F3B567',
+        color: '#E57373',
         defaults: {
                 name: { value: '' },
                 tp_id: { value: '', required: true },
@@ -16,10 +16,10 @@
             inputs: 0,
             outputs: 1,
             outputLabels: ['Cancellation flow'],
-            icon: 'font-awesome/fa-stop',
-            paletteLabel: nodeLabel,
+            icon: 'tp.svg',
+            paletteLabel: 'cancel',
             label: function () { 
-                return this.name || `Cancel ${this.tp_id}` || 'tp-cancel'
+                return this.name || `Cancel ${this.tp_id}` || 'Cancel'
             },
             oneditprepare: function() {
                 // Populate tp_id dropdown with available task packages
@@ -28,9 +28,9 @@
                     dropdown.empty()
                     dropdown.append('<option value="">Select task package...</option>')
                     
-                    // Scan existing tp-start nodes in workspace for task packages
+                    // Scan existing tp-create nodes in workspace for task packages
                     RED.nodes.eachNode((node) => {
-                        if (node.type === 'tp-start' && node.tp_id) {
+                        if (node.type === 'tp-create' && node.tp_id) {
                             const selected = node.tp_id === this.tp_id ? 'selected' : ''
                             const displayName = node.tp_name || node.tp_id
                             dropdown.append(`<option value="${node.tp_id}" ${selected}>${node.tp_id} - ${displayName}</option>`)
@@ -126,7 +126,7 @@
     </ul>
     
     <h3>Flow Context Integration</h3>
-    <p>This node works with flow context variables set by tp-start:</p>
+    <p>This node works with flow context variables set by tp-create:</p>
     <ul>
         <li>Reads <code>current_tpc_id</code> to know which task to monitor</li>
         <li>Sets <code>task_cancelled = true</code> when cancellation occurs</li>
@@ -135,7 +135,7 @@
     
     <h3>Usage</h3>
     <p>
-        Configure the node with a specific task package ID, then place it anywhere in your flow - no connections to tp-start required! 
+        Configure the node with a specific task package ID, then place it anywhere in your flow - no connections to tp-create required! 
         It will automatically:
     </p>
     <ul>
@@ -147,7 +147,7 @@
     
     <h3>Design Benefits</h3>
     <ul>
-        <li><b>Clean Flows:</b> No wiring required from tp-start</li>
+        <li><b>Clean Flows:</b> No wiring required from tp-create</li>
         <li><b>Flexible Placement:</b> Can be placed anywhere in the flow</li>
         <li><b>Task Type Filtering:</b> Only handles specific task package types</li>
         <li><b>Parallel Support:</b> Handles multiple instances of the same task type</li>

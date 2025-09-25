@@ -1,29 +1,31 @@
 <!-- Task Package Data Get Node HTML -->
 <script type="text/javascript">
-(function () {
-    'use strict'
-    
-    RED.nodes.registerType('tp-data-get', {
-        category: 'Task Package',
-        color: '#B3D9FF',
-        defaults: {
-            name: { value: '' },
-            key_field: { value: 'tp_data.tpc_id' },
-            output_field: { value: 'stored_data' },
-            fail_on_missing: { value: true },
-            cleanup_on_get: { value: false }
-        },
-        inputs: 1,
-        outputs: 1,
-        inputLabels: ['Lookup request'],
-        outputLabels: ['Enhanced data'],
-        icon: 'font-awesome/fa-search',
-        paletteLabel: 'tp-data-get',
-        label: function () { 
-            return this.name || `get → ${this.output_field}` || 'tp-data-get'
-        }
-    })
-})()
+    // Isolate this code
+    (function () {
+        'use strict'
+
+        const nodeLabel = 'tp-data-get'
+
+        RED.nodes.registerType(nodeLabel, {
+            category: 'Task Package',
+            color: '#EF9A9A',
+            defaults: {
+                name: { value: '' },
+                output_field: { value: 'stored_data' },
+                fail_on_missing: { value: true }
+            },
+            inputs: 1,
+            outputs: 1,
+            inputLabels: ['Lookup request'],
+            outputLabels: ['Enhanced data'],
+            icon: 'tp.svg',
+            paletteLabel: 'data-get',
+            label: function () { 
+                return this.name || `get tp_data → ${this.output_field}` || 'get tp_data'
+            }
+        })
+
+    })()
 </script>
 
 <script type="text/html" data-template-name="tp-data-get">
@@ -33,18 +35,10 @@
     </div>
     
     <div class="form-row">
-        <label for="node-input-key_field"><i class="fa fa-key"></i> Lookup Key Field</label>
-        <input type="text" id="node-input-key_field" placeholder="tp_data.tpc_id">
-        <div class="form-tips">
-            Message property path containing the storage key to lookup
-        </div>
-    </div>
-    
-    <div class="form-row">
         <label for="node-input-output_field"><i class="fa fa-arrow-right"></i> Output Field</label>
         <input type="text" id="node-input-output_field" placeholder="stored_data">
         <div class="form-tips">
-            Where to place retrieved data in the message (e.g., stored_data, payload.original_task)
+            Where to place retrieved data in the message (e.g., stored_data, payload.original_data)
         </div>
     </div>
     
@@ -56,24 +50,15 @@
             If unchecked, missing data results in null value instead of stopping flow
         </div>
     </div>
-    
-    <div class="form-row">
-        <label for="node-input-cleanup_on_get">&nbsp;</label>
-        <input type="checkbox" id="node-input-cleanup_on_get" style="display: inline-block; width: auto; vertical-align: top;">
-        <label for="node-input-cleanup_on_get" style="width: 70%;"> Delete after retrieval</label>
-        <div class="form-tips">
-            Remove data from storage after successful retrieval (one-time use)
-        </div>
-    </div>
 </script>
 
 <script type="text/html" data-help-name="tp-data-get">
-    <p>Retrieves task data from global context storage and adds it to the message.</p>
+    <p>Retrieves task data using tp_data.tpc_id as the lookup key.</p>
     
     <h3>Inputs</h3>
     <dl class="message-properties">
         <dt>tp_data.tpc_id <span class="property-type">string</span></dt>
-        <dd>Default lookup key (configurable via Lookup Key Field)</dd>
+        <dd><b>Required:</b> Task package instance ID used as lookup key</dd>
     </dl>
     
     <h3>Outputs</h3>
@@ -81,11 +66,11 @@
         <dt>stored_data <span class="property-type">object</span></dt>
         <dd>Retrieved data structure (configurable via Output Field)</dd>
         
-        <dt>stored_data.data <span class="property-type">object</span></dt>
+        <dt>stored_data.data <span class="property-type">any</span></dt>
         <dd>Original payload data that was stored</dd>
         
         <dt>stored_data.metadata <span class="property-type">object</span></dt>
-        <dd>Task metadata (tp_id, user, created_at)</dd>
+        <dd>Task metadata (tp_id, tp_name, user, status, created_at)</dd>
         
         <dt>stored_data.stored_at <span class="property-type">number</span></dt>
         <dd>Timestamp when data was stored</dd>
@@ -96,17 +81,11 @@
     
     <h3>Configuration</h3>
     <dl class="message-properties">
-        <dt>Lookup Key Field <span class="property-type">string</span></dt>
-        <dd>Message property path containing the storage key</dd>
-        
         <dt>Output Field <span class="property-type">string</span></dt>
-        <dd>Where to place retrieved data in the message</dd>
+        <dd>Where to place retrieved data in the message (default: stored_data)</dd>
         
         <dt>Fail on Missing <span class="property-type">boolean</span></dt>
         <dd>Stop flow if data not found, or continue with null value</dd>
-        
-        <dt>Delete After Retrieval <span class="property-type">boolean</span></dt>
-        <dd>Remove data from storage after successful retrieval</dd>
     </dl>
     
     <h3>Retrieved Data Structure</h3>
@@ -115,8 +94,10 @@ msg.stored_data = {
   "data": { /* original payload */ },
   "metadata": {
     "tp_id": "tp01",
+    "tp_name": "Linen Delivery",
     "user": "user@example.com", 
-    "created_at": "2025-09-17T10:00:00Z"
+    "status": "ongoing",
+    "created_at": "2025-09-25T10:00:00Z"
   },
   "stored_at": 1695820800000,
   "retrieved_at": 1695824400000
@@ -125,8 +106,15 @@ msg.stored_data = {
     
     <h3>Usage Example</h3>
     <pre>
-[tp-cancel] → [tp-data-get] → [Enhanced Cancel Logic with Robot Info]
+[tp-cancel] → [tp-data-get] → [Enhanced Cancel Logic with Original Data]
     </pre>
+    
+    <h3>Lookup Behavior</h3>
+    <ul>
+        <li><b>Lookup Key:</b> Always uses tp_data.tpc_id</li>
+        <li><b>Missing Data:</b> Returns null if fail_on_missing is false</li>
+        <li><b>Expired Data:</b> Automatically removed, treated as missing</li>
+    </ul>
     
     <h3>Error Handling</h3>
     <p>When "Fail on Missing" is disabled, missing or expired data results in <code>null</code> value in the output field, allowing the flow to continue gracefully.</p>

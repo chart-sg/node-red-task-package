@@ -8,18 +8,16 @@
 
         RED.nodes.registerType(nodeLabel, {
             category: 'config',
-            color: '#E6E0F8',
+            color: '#EF9A9A',
             defaults: {
                 name: { value: '' },
                 keycloak_url: { value: '' },
-                db_url: { value: '/tmp/sqlite' },
-                host_url: { value: 'localhost' },
-                host_port: { value: 1880, validate: RED.validators.number() }
+                db_url: { value: '/tmp/sqlite' }
             },
             label: function () {
-                return this.name || 'Task Package Config'
+                return this.name || 'Config'
             },
-            icon: 'font-awesome/fa-cogs'
+            icon: 'tp.svg'
         })
 
     })()
@@ -53,22 +51,6 @@
             Database file path for SQLite storage.
         </div>
     </div>
-    
-    <div class="form-row">
-        <label for="node-config-input-host_url"><i class="fa fa-globe"></i> Host URL</label>
-        <input type="text" id="node-config-input-host_url" placeholder="http://localhost">
-        <div class="form-tips">
-            Base URL for generating dashboard form URLs.
-        </div>
-    </div>
-    
-    <div class="form-row">
-        <label for="node-config-input-host_port"><i class="fa fa-plug"></i> Host Port</label>
-        <input type="number" id="node-config-input-host_port" placeholder="1880" min="1" max="65535">
-        <div class="form-tips">
-            Port number for the Node-RED server.
-        </div>
-    </div>
 </script>
 
 <script type="text/html" data-help-name="tp-config">
@@ -96,21 +78,6 @@
             File path for the SQLite database that stores task package definitions and execution instances.
             <br><br>
             Default: <code>/tmp/sqlite</code>
-        </dd>
-        
-        <dt>Host URL <span class="property-type">string</span></dt>
-        <dd>
-            Base URL used to construct dashboard form URLs in API responses.
-            Should include the protocol (http:// or https://).
-            <br><br>
-            Example: <code>http://10.233.0.80</code>
-        </dd>
-        
-        <dt>Host Port <span class="property-type">number</span></dt>
-        <dd>
-            Port number where Node-RED is running. Used to construct complete URLs.
-            <br><br>
-            Default: <code>1880</code>
         </dd>
     </dl>
     

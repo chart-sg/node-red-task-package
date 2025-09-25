@@ -66,6 +66,17 @@ async function inputMsgHandler(msg, send, done) {
         const task = active_tasks[task_index]
         const wasCancelled = task.cancelled || false
         
+        // Validate current status - task should be in 'ongoing' or 'started' to be completed
+        const currentStatus = msg.tp_data.status
+        const validStatusesForCompletion = ['ongoing', 'started']
+        
+        if (!validStatusesForCompletion.includes(currentStatus)) {
+            node.warn(`Task ${tpc_id} has status '${currentStatus}' which is not valid for completion. Expected: ${validStatusesForCompletion.join(' or ')}`)
+            node.status({fill: 'orange', shape: 'ring', text: `Invalid status: ${currentStatus}`})
+            done()
+            return
+        }
+        
         // Determine final status
         const finalStatus = wasCancelled ? 'cancelled' : 'completed'
         
@@ -141,8 +152,13 @@ function nodeInstance(config) {
     
     /** Helper function to find the first available tp-config node */
     this.findTpConfigNode = function() {
-        const configNodes = RED.nodes.getType('tp-config')
-        return configNodes.length > 0 ? configNodes[0] : null
+        let configNode = null
+        RED.nodes.eachNode((node) => {
+            if (node.type === 'tp-config' && !configNode) {
+                configNode = RED.nodes.getNode(node.id)
+            }
+        })
+        return configNode
     }
     
     // Auto-find tp-config node if not explicitly set

@@ -5,7 +5,7 @@
     
     RED.nodes.registerType('tp-delay', {
         category: 'Task Package',
-        color: '#DEBD85',
+        color: '#EF9A9A',
         defaults: {
             name: { value: '' },
             delay_time: { value: 5000, validate: RED.validators.number() },
@@ -15,10 +15,10 @@
         outputs: 2,
         inputLabels: ['Task data'],
         outputLabels: ['Completed', 'Cancelled'],
-        icon: 'font-awesome/fa-clock-o',
-        paletteLabel: 'tp-delay',
+        icon: 'tp.svg',
+        paletteLabel: 'delay',
         label: function () { 
-            return this.name || `delay ${this.delay_time}ms` || 'tp-delay'
+            return this.name || `Delay ${this.delay_time}ms` || 'Delay'
         }
     })
 })()

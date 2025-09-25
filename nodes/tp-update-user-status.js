@@ -1,5 +1,5 @@
-/** Task Package Update Node
- *  Updates user-defined status information
+/** Task Package Update User Status Node
+ *  Updates user-defined status information for task packages
  *  Following TotallyInformation patterns
  * 
  * Copyright (c) 2025 CHART
@@ -14,7 +14,7 @@ const mod = {
     /** @type {RED} Reference to the master RED instance */
     RED: undefined,
     /** @type {string} Custom Node Name - must match HTML file and package.json */
-    nodeName: 'tp-update',
+    nodeName: 'tp-update-user-status',
     /** @type {boolean} Turn on/off debugging */
     debug: false,
 }
@@ -102,13 +102,18 @@ function nodeInstance(config) {
     const RED = mod.RED
     RED.nodes.createNode(this, config) 
     
-    this.name = config.name || 'tp-update'
+    this.name = config.name || 'tp-update-user-status'
     this.user_status = config.user_status || ''
     
     /** Helper function to find the first available tp-config node */
     this.findTpConfigNode = function() {
-        const configNodes = RED.nodes.getType('tp-config')
-        return configNodes.length > 0 ? configNodes[0] : null
+        let configNode = null
+        RED.nodes.eachNode((node) => {
+            if (node.type === 'tp-config' && !configNode) {
+                configNode = RED.nodes.getNode(node.id)
+            }
+        })
+        return configNode
     }
     
     // Auto-find tp-config node if not explicitly set
@@ -128,11 +133,11 @@ function nodeInstance(config) {
 
 //#endregion
 
-function TpUpdate(RED) {
+function TpUpdateUserStatus(RED) {
     mod.RED = RED
     RED.nodes.registerType(mod.nodeName, nodeInstance)
 }
 
 module.exports = function(RED) {
-    TpUpdate(RED)
+    TpUpdateUserStatus(RED)
 }

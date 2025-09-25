@@ -105,8 +105,13 @@ function nodeInstance(config) {
     
     /** Helper function to find the first available tp-config node */
     this.findTpConfigNode = function() {
-        const configNodes = RED.nodes.getType('tp-config')
-        return configNodes.length > 0 ? configNodes[0] : null
+        let configNode = null
+        RED.nodes.eachNode((node) => {
+            if (node.type === 'tp-config' && !configNode) {
+                configNode = RED.nodes.getNode(node.id)
+            }
+        })
+        return configNode
     }
     
     // Auto-find tp-config node if not explicitly set

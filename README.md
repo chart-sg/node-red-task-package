@@ -55,7 +55,7 @@ Global configuration for the task package system with settings for:
 - **Purpose**: Terminate task package execution
 - **Features**: Status determination (completed/cancelled), database updates
 
-#### `tp-update` (Status Update)
+#### `tp-update-user-status` (Status Update)
 - **Inputs**: 1 (from flow)  
 - **Outputs**: None
 - **Purpose**: Update user-defined status information
@@ -115,7 +115,7 @@ Cancel a running task package
 
 ### Status Reporting Flow
 ```
-[tp-start] ──→ [step-1] ──→ [tp-update] ──→ [step-2] ──→ [tp-end]
+[tp-start] ──→ [step-1] ──→ [tp-update-user-status] ──→ [step-2] ──→ [tp-end]
                                 │
                                 └─→ (status: "processing step 1")
 ```
@@ -134,7 +134,7 @@ When no Keycloak URL is configured, security checks are bypassed for development
 Registry of available task package definitions
 - `id`: Task package identifier (tp_id)
 - `name`: Human-readable name
-- `form_url`: Dashboard endpoint path
+- `form_url`: Form endpoint path as stored in database
 
 ### task_packages_created  
 Execution instances of task packages
@@ -142,7 +142,7 @@ Execution instances of task packages
 - `tp_id`: Reference to task package
 - `user`: Requesting user
 - `status`: System status (created, underway, completed, cancelled)
-- `user_status`: Custom status from tp-update nodes
+- `user_status`: Custom status from tp-update-user-status nodes
 
 ## Development
 
@@ -161,7 +161,7 @@ node-red-task-package/
 │   ├── tp-start.js/.html         # Start node
 │   ├── tp-cancel.js/.html        # Cancel node
 │   ├── tp-end.js/.html           # End node
-│   ├── tp-update.js/.html        # Update node
+│   ├── tp-update-user-status.js/.html  # Update user status node
 │   └── tp-delay.js/.html         # Delay node
 └── scripts/                  # Automation tools
 ```

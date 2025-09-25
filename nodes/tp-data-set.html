@@ -1,0 +1,94 @@
+<!-- Task Package Data Set Node HTML -->
+<script type="text/javascript">
+    // Isolate this code
+    (function () {
+        'use strict'
+
+        const nodeLabel = 'tp-data-set'
+
+        RED.nodes.registerType(nodeLabel, {
+            category: 'Task Package',
+            color: '#EF9A9A',
+            defaults: {
+                name: { value: '' }
+            },
+            inputs: 1,
+            outputs: 1,
+            inputLabels: ['Data to store'],
+            outputLabels: ['Passthrough'],
+            icon: 'tp.svg',
+            paletteLabel: 'data-set',
+            label: function () { 
+                return this.name || 'set tp_data'
+            }
+        })
+
+    })()
+</script>
+
+<script type="text/html" data-template-name="tp-data-set">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Task Package Data Set">
+    </div>
+</script>
+
+<script type="text/html" data-help-name="tp-data-set">
+    <p>Stores task data using tp_data.tpc_id as the storage key with automatic TTL management.</p>
+    
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">any</span></dt>
+        <dd>Data to store in global context</dd>
+        
+        <dt>tp_data.tpc_id <span class="property-type">string</span></dt>
+        <dd><b>Required:</b> Task package instance ID used as storage key</dd>
+        
+        <dt>tp_data.status <span class="property-type">string</span></dt>
+        <dd>Current task status - affects TTL behavior</dd>
+    </dl>
+    
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">any</span></dt>
+        <dd>Original message passed through unchanged</dd>
+    </dl>
+    
+    <h3>Storage Behavior</h3>
+    <ul>
+        <li><b>Storage Key:</b> Always uses tp_data.tpc_id</li>
+        <li><b>Default TTL:</b> 1 hour from storage time</li>
+        <li><b>Completion TTL:</b> 1 hour after task completion/cancellation</li>
+        <li><b>Auto Cleanup:</b> Expired entries removed every 5 minutes</li>
+    </ul>
+    
+    <h3>Storage Format</h3>
+    <p>Data is stored in global context with this structure:</p>
+    <pre>
+{
+  "tpc-uuid-123": {
+    "data": { /* your payload data */ },
+    "metadata": {
+      "tp_id": "tp01",
+      "tp_name": "Linen Delivery",
+      "user": "user@example.com",
+      "status": "ongoing",
+      "created_at": "2025-09-25T10:00:00Z"
+    },
+    "stored_at": 1695820800000,
+    "expires_at": 1695824400000
+  }
+}
+    </pre>
+    
+    <h3>Usage Example</h3>
+    <pre>
+[tp-ongoing] → [RMF Response] → [tp-data-set] → [Continue Flow]
+    </pre>
+    
+    <h3>TTL Management</h3>
+    <p>
+        Data is automatically managed with a 1-hour TTL. When tasks reach 'completed' or 'cancelled' status,
+        the TTL is extended to 1 hour from that completion time, allowing for post-completion data access.
+    </p>
+</script>

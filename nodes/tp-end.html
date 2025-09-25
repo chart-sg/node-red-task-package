@@ -8,7 +8,7 @@
 
         RED.nodes.registerType(nodeLabel, {
             category: 'Task Package',
-            color: '#FFAAAA',
+            color: '#E57373',
             defaults: {
                 name: { value: '' },
                 config_node: { value: '', type: 'tp-config' }
@@ -16,10 +16,10 @@
             inputs: 1,
             outputs: 0,
             inputLabels: ['Task completion'],
-            icon: 'font-awesome/fa-flag-checkered',
-            paletteLabel: nodeLabel,
+            icon: 'tp.svg',
+            paletteLabel: 'end',
             label: function () { 
-                return this.name || 'tp-end'
+                return this.name || 'End'
             }
         })
 
@@ -63,12 +63,23 @@
     <h3>Behavior</h3>
     <p>When this node receives a message:</p>
     <ol>
+        <li>Validates that task status is 'ongoing' or 'started' (rejects 'created' status)</li>
         <li>Checks flow context for cancellation status</li>
         <li>Determines final status: 'completed' (normal) or 'cancelled'</li>
         <li>Updates database with final status and timestamp</li>
         <li>Clears flow context variables</li>
         <li>Updates node status indicator</li>
     </ol>
+    
+    <h3>Status Validation</h3>
+    <p>
+        This node validates that tasks are in an appropriate state before completion:
+    </p>
+    <ul>
+        <li><b>Valid statuses:</b> 'ongoing' or 'started'</li>
+        <li><b>Invalid statuses:</b> 'created' (task never properly started)</li>
+        <li><b>Action on invalid:</b> Logs warning and stops processing</li>
+    </ul>
     
     <h3>Status Determination</h3>
     <ul>

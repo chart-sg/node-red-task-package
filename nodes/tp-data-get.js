@@ -1,63 +1,76 @@
-/**
- * Task Package Data Get Node
- * Retrieves task data from global context storage
+/** Task Package Data Get Node
+ *  Retrieves task data using tpc_id as key
+ *  Following TotallyInformation patterns
+ * 
+ * Copyright (c) 2025 CHART
+ * Licensed under the ISC License
  */
+'use strict'
 
-module.exports = function(RED) {
-    'use strict'
+/** --- Type Definitions --- */
+// @typedef {import('node-red')} RED
 
-    function TpDataGetNode(config) {
-        RED.nodes.createNode(this, config)
-        
-        this.name = config.name || 'tp-data-get'
-        this.key_field = config.key_field || 'tp_data.tpc_id' // Field to use as lookup key
-        this.output_field = config.output_field || 'stored_data' // Where to put retrieved data
-        this.fail_on_missing = config.fail_on_missing !== false // Default true
-        this.cleanup_on_get = config.cleanup_on_get || false // Default false
+//#region ----- Module level variables ---- //
+
+/** Main module variables */
+const mod = {
+    /** @type {RED} Reference to the master RED instance */
+    RED: undefined,
+    /** @type {string} Custom Node Name - must match HTML file and package.json */
+    nodeName: 'tp-data-get',
+    /** @type {boolean} Turn on/off debugging */
+    debug: false,
+}
+
+//#endregion
+
+//#region ----- Module-level support functions ----- //
+
+/** 
+ * Run when an actual instance of our node is committed to a flow
+ * @param {object} config The Node-RED config object
+ */
+function nodeInstance(config) {
+    // As a module-level named function, it will inherit `mod` and other module-level variables
+    
+    // If you need it - which you will here - or just use mod.RED if you prefer:
+    const RED = mod.RED
+
+    // Create the node instance - `this` can only be referenced AFTER here
+    RED.nodes.createNode(this, config) 
+
+    // Transfer config items from the Editor panel to the runtime
+    this.name = config.name || 'tp-data-get'
+    this.output_field = config.output_field || 'stored_data' // Where to put retrieved data
+    this.fail_on_missing = config.fail_on_missing !== false // Default true
         
         // Set initial status
         this.status({fill: 'blue', shape: 'ring', text: 'Ready'})
         
         // Handle incoming messages
-        this.on('input', (msg) => {
+        this.on('input', (msg, send, done) => {
             try {
-                // Extract lookup key from message
-                const keyPath = this.key_field.split('.')
-                let lookupKey = msg
-                
-                for (const path of keyPath) {
-                    if (lookupKey && typeof lookupKey === 'object' && lookupKey[path]) {
-                        lookupKey = lookupKey[path]
-                    } else {
-                        if (this.fail_on_missing) {
-                            this.warn(`Lookup key not found at path: ${this.key_field}`)
-                            this.status({fill: 'yellow', shape: 'ring', text: 'Key not found'})
-                            return
-                        } else {
-                            // Send message with empty stored_data
-                            this.setOutputField(msg, null)
-                            this.status({fill: 'grey', shape: 'ring', text: 'Key not found (ignored)'})
-                            this.send(msg)
-                            return
-                        }
-                    }
-                }
-                
-                if (!lookupKey || typeof lookupKey !== 'string') {
+                // Validate input message - must have tp_data.tpc_id
+                if (!msg.tp_data || !msg.tp_data.tpc_id) {
                     if (this.fail_on_missing) {
-                        this.warn('Invalid lookup key - must be a non-empty string')
-                        this.status({fill: 'red', shape: 'ring', text: 'Invalid key'})
+                        this.error('Message must contain tp_data.tpc_id', msg)
+                        this.status({fill: 'red', shape: 'ring', text: 'Missing tpc_id'})
+                        if (done) done()
                         return
                     } else {
                         this.setOutputField(msg, null)
-                        this.status({fill: 'grey', shape: 'ring', text: 'Invalid key (ignored)'})
-                        this.send(msg)
+                        this.status({fill: 'grey', shape: 'ring', text: 'Missing tpc_id (ignored)'})
+                        send(msg)
+                        if (done) done()
                         return
                     }
                 }
                 
-                // Get storage
-                const storage = RED.settings.functionGlobalContext.tp_data_storage || {}
+                const lookupKey = msg.tp_data.tpc_id
+                
+                // Get storage from global context
+                const globalContext = this.context().global
+                const storage = globalContext.get('tp_data_storage') || {}
                 const entry = storage[lookupKey]
                 
                 // Check if entry exists
@@ -65,11 +78,13 @@ module.exports = function(RED) {
                     if (this.fail_on_missing) {
                         this.warn(`No data found for key: ${lookupKey}`)
                         this.status({fill: 'yellow', shape: 'ring', text: 'Not found'})
+                        if (done) done()
                         return
                     } else {
                         this.setOutputField(msg, null)
                         this.status({fill: 'grey', shape: 'ring', text: 'Not found (ignored)'})
-                        this.send(msg)
+                        send(msg)
+                        if (done) done()
                         return
                     }
                 }
@@ -79,16 +94,18 @@ module.exports = function(RED) {
                 if (entry.expires_at && entry.expires_at < now) {
                     // Remove expired entry
                     delete storage[lookupKey]
-                    RED.settings.functionGlobalContext.tp_data_storage = storage
+                    globalContext.set('tp_data_storage', storage)
                     
                     if (this.fail_on_missing) {
                         this.warn(`Data for key ${lookupKey} has expired`)
                         this.status({fill: 'yellow', shape: 'ring', text: 'Expired'})
+                        if (done) done()
                         return
                     } else {
                         this.setOutputField(msg, null)
                         this.status({fill: 'grey', shape: 'ring', text: 'Expired (ignored)'})
-                        this.send(msg)
+                        send(msg)
+                        if (done) done()
                         return
                     }
                 }
@@ -104,21 +121,22 @@ module.exports = function(RED) {
                 // Add to message
                 this.setOutputField(msg, retrievedData)
                 
-                // Cleanup if requested
-                if (this.cleanup_on_get) {
-                    delete storage[lookupKey]
-                    RED.settings.functionGlobalContext.tp_data_storage = storage
-                    this.status({fill: 'green', shape: 'dot', text: `Retrieved & deleted ${lookupKey}`})
-                } else {
-                    this.status({fill: 'green', shape: 'dot', text: `Retrieved ${lookupKey}`})
-                }
+                // Update status and send message
+                this.status({fill: 'green', shape: 'dot', text: `Retrieved data`})
                 
                 // Send enhanced message
-                this.send(msg)
+                send(msg)
+                
+                if (mod.debug) {
+                    this.log(`Retrieved data for task: ${lookupKey}`)
+                }
+                
+                if (done) done()
                 
             } catch (error) {
                 this.error(`Error retrieving data: ${error.message}`, msg)
                 this.status({fill: 'red', shape: 'ring', text: 'Error'})
+                if (done) done(error)
             }
         })
         
@@ -139,7 +157,39 @@ module.exports = function(RED) {
             // Set the final field
             current[fieldPath[fieldPath.length - 1]] = value
         }
-    }
+        
+        if (mod.debug) {
+            this.log('tp-data-get node initialized')
+        }
 
-    RED.nodes.registerType('tp-data-get', TpDataGetNode)
+        /** Clean up on node removal/shutdown */
+        this.on('close', (removed, done) => {
+            if (mod.debug) {
+                this.log('tp-data-get node closing')
+            }
+            done()
+        })
+}
+
+//#endregion
+
+/** 
+ * Complete module definition for our Node. This is where things actually start.
+ * @param {RED} RED The Node-RED runtime object
+ */
+function TpDataGet(RED) {
+    // Save a reference to the RED runtime for convenience
+    mod.RED = RED
+    
+    // Register the node type
+    RED.nodes.registerType(mod.nodeName, nodeInstance)
+    
+    if (mod.debug) {
+        RED.log.info(`✅ Registered node: ${mod.nodeName}`)
+    }
+}
+
+// Export the module definition, this is consumed by Node-RED on startup.
+module.exports = function(RED) {
+    TpDataGet(RED)
 }

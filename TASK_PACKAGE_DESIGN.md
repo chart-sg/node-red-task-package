@@ -81,14 +81,14 @@ sequenceDiagram
     {
         "id": "tp01",
         "name": "linen_delivery", 
-        "form_url": "http://localhost:1880/dashboard/linen_delivery",
+        "form_url": "/dashboard/linen_delivery",
         "created_at": "2025-09-18 04:35:42",
         "updated_at": "2025-09-18 04:35:42"
     }
 ]
 ```
 
-**Note**: The `form_url` is automatically constructed using the `host_url` and `host_port` from tp-config configuration: `{host_url}:{host_port}/dashboard/{form_url_path}`
+**Note**: The `form_url` is returned exactly as stored in the database without any path manipulation
 
 #### GET `/task-package`
 **Purpose**: List all available task package definitions
@@ -159,9 +159,6 @@ sequenceDiagram
   - Example: `http://10.233.0.80:8080/realms/chart-sandbox`
   - If empty, security layer is bypassed
 - `db_url`: Database file path (default: `/tmp/sqlite`)
-- `host_url`: Base URL for form generation (default: `localhost`)
-  - Example: `http://10.233.0.80`
-- `host_port`: Port number (default: `1880`)
 
 #### Flow Control Nodes
 
@@ -173,7 +170,7 @@ sequenceDiagram
 **Configuration**:
 - `tp_id`: Unique task package identifier (e.g., "tp01")
 - `tp_name`: Human-readable name (e.g., "Linen Delivery")  
-- `tp_form_url`: Dashboard endpoint path (e.g., "linen_delivery")
+- `tp_form_url`: Form endpoint path as stored in database (e.g., "/dashboard/linen_delivery")
 - `tp_schema`: JSON schema for payload validation
 
 **Behavior**:
@@ -341,7 +338,7 @@ function handleCancelEvent(payload, tpc_id) {
 }
 ```
 
-##### `tp-update` (Status Update)
+##### `tp-update-user-status` (Status Update)
 - **Inputs**: 1 (from flow)
 - **Outputs**: None
 - **Purpose**: Update user-defined status information
@@ -590,7 +587,7 @@ CREATE TABLE IF NOT EXISTS task_packages_created (
     tp_id TEXT NOT NULL,                       -- Reference to task_packages.id
     tp_name TEXT NOT NULL,                     -- Cached from task_packages
     user TEXT,                                 -- Requesting user
-    user_status TEXT,                          -- Custom status from tp-update
+    user_status TEXT,                          -- Custom status from tp-update-user-status
     status TEXT NOT NULL DEFAULT 'created',   -- System status
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -640,7 +637,7 @@ Task B: [tp-start:tp02] ──→ [step-1] ──→ [tp-delay] ──→ [step-
 
 ### Status Reporting Flow
 ```
-[tp-start] ──→ [step-1] ──→ [tp-update] ──→ [step-2] ──→ [tp-end]
+[tp-start] ──→ [step-1] ──→ [tp-update-user-status] ──→ [step-2] ──→ [tp-end]
                                 │
                                 └─→ (status: "processing step 1")
 ```

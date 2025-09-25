@@ -17,12 +17,14 @@
     "version": ">=1.3.0",
     "nodes": {
       "tp-config": "nodes/tp-config.js",
+      "tp-create": "nodes/tp-create.js",
       "tp-start": "nodes/tp-start.js",
+      "tp-ongoing": "nodes/tp-ongoing.js",
       "tp-cancel": "nodes/tp-cancel.js",
       "tp-end": "nodes/tp-end.js",
-      "tp-update": "nodes/tp-update.js",
+      "tp-update-user-status": "nodes/tp-update-user-status.js",
       "tp-delay": "nodes/tp-delay.js",
-      "tp-data-store": "nodes/tp-data-store.js",
+      "tp-data-set": "nodes/tp-data-set.js",
       "tp-data-get": "nodes/tp-data-get.js"
     }
   },

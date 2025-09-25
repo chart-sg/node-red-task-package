@@ -48,8 +48,6 @@ function nodeInstance(config) {
     this.name = config.name || 'Task Package Config'
     this.keycloak_url = config.keycloak_url || ''
     this.db_url = config.db_url || '/tmp/sqlite'
-    this.host_url = config.host_url || 'localhost'
-    this.host_port = config.host_port || 1880
     
     // Use the OIDC provider URL directly
     const finalOidcUrl = this.keycloak_url
@@ -57,11 +55,6 @@ function nodeInstance(config) {
     // Validate configuration
     if (finalOidcUrl && !finalOidcUrl.startsWith('http')) {
         this.warn('OIDC provider URL should start with http:// or https://')
-    }
-    
-    if (this.host_port && (isNaN(this.host_port) || this.host_port < 1 || this.host_port > 65535)) {
-        this.warn('Host port should be a valid port number (1-65535)')
-        this.host_port = 1880
     }
 
     // Initialize API if not already done
@@ -73,9 +66,7 @@ function nodeInstance(config) {
             // Initialize API routes
             taskPackageAPI.initializeRoutes(app, {
                 keycloak_url: finalOidcUrl,
-                db_url: this.db_url,
-                host_url: this.host_url,
-                host_port: this.host_port
+                db_url: this.db_url
             })
             
             mod.apiInitialized = true
@@ -88,15 +79,13 @@ function nodeInstance(config) {
     
     // Set status indicator
     if (mod.debug) {
-        this.status({fill: 'green', shape: 'dot', text: `API:${this.host_port}`})
+        this.status({fill: 'green', shape: 'dot', text: 'API Ready'})
     }
     
     if (mod.debug) {
         this.log(`Config loaded: ${JSON.stringify({
             oidc_url: finalOidcUrl ? '***configured***' : 'none',
-            db_url: this.db_url,
-            host_url: this.host_url,
-            host_port: this.host_port
+            db_url: this.db_url
         })}`)
     }
 

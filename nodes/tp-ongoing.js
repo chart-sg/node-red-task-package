@@ -1,5 +1,5 @@
-/** Task Package Start Node
- *  Updates task package status to 'started' in database
+/** Task Package Ongoing Node
+ *  Updates task package status to 'ongoing' in database
  *  Following TotallyInformation patterns
  * 
  * Copyright (c) 2025 CHART
@@ -17,7 +17,7 @@ const mod = {
     /** @type {RED} Reference to the master RED instance */
     RED: undefined,
     /** @type {string} Custom Node Name - must match HTML file and package.json */
-    nodeName: 'tp-start',
+    nodeName: 'tp-ongoing',
     /** @type {boolean} Turn on/off debugging */
     debug: false,
 }
@@ -40,8 +40,7 @@ function nodeInstance(config) {
     RED.nodes.createNode(this, config) 
 
     // Transfer config items from the Editor panel to the runtime
-    this.name = config.name || 'tp-start'
-    this.auto_transition = config.auto_transition || false
+    this.name = config.name || 'tp-ongoing'
     
     // Set initial status
     this.status({fill: 'blue', shape: 'ring', text: 'Ready'})
@@ -59,53 +58,43 @@ function nodeInstance(config) {
             
             const tpc_id = msg.tp_data.tpc_id
             
-            // Update database status to 'started'
+            // Update database status to 'ongoing'
             const taskPackageDB = require('../lib/task-package-db')
-            await taskPackageDB.updateTaskStatus(tpc_id, 'started')
+            await taskPackageDB.updateTaskStatus(tpc_id, 'ongoing')
             
-            // Update tp_data status and add start timestamp
-            msg.tp_data.status = 'started'
-            msg.tp_data.started_at = new Date().toISOString()
+            // Update tp_data status and add ongoing timestamp
+            msg.tp_data.status = 'ongoing'
+            msg.tp_data.ongoing_at = new Date().toISOString()
             msg.tp_data.updated_at = new Date().toISOString()
-            
-            // If auto_transition is enabled, immediately transition to 'ongoing'
-            if (this.auto_transition) {
-                await taskPackageDB.updateTaskStatus(tpc_id, 'ongoing')
-                msg.tp_data.status = 'ongoing'
-                msg.tp_data.ongoing_at = new Date().toISOString()
-                msg.tp_data.updated_at = new Date().toISOString()
-                msg.topic = `task-package/${msg.tp_data.tp_id}/ongoing`
-            } else {
-                msg.topic = `task-package/${msg.tp_data.tp_id}/started`
-            }
+            msg.topic = `task-package/${msg.tp_data.tp_id}/ongoing`
             
             // Set node status
-            this.status({fill: 'green', shape: 'dot', text: `Started: ${tpc_id.substr(0, 8)}...`})
+            this.status({fill: 'yellow', shape: 'dot', text: `Ongoing: ${tpc_id.substr(0, 8)}...`})
             
             // Send message to next node
             send(msg)
             
             if (mod.debug) {
-                this.log(`Task package started: ${tpc_id}`)
+                this.log(`Task package ongoing: ${tpc_id}`)
             }
             
             if (done) done()
             
         } catch (error) {
-            this.error(`Error starting task package: ${error.message}`, msg)
+            this.error(`Error updating task package to ongoing: ${error.message}`, msg)
             this.status({fill: 'red', shape: 'ring', text: 'Error'})
             if (done) done(error)
         }
     })
     
     if (mod.debug) {
-        this.log('tp-start node initialized')
+        this.log('tp-ongoing node initialized')
     }
 
     /** Clean up on node removal/shutdown */
     this.on('close', (removed, done) => {
         if (mod.debug) {
-            this.log('tp-start node closing')
+            this.log('tp-ongoing node closing')
         }
         done()
     })
@@ -117,7 +106,7 @@ function nodeInstance(config) {
  * Complete module definition for our Node. This is where things actually start.
  * @param {RED} RED The Node-RED runtime object
  */
-function TpStart(RED) {
+function TpOngoing(RED) {
     // Save a reference to the RED runtime for convenience
     mod.RED = RED
     
@@ -131,5 +120,5 @@ function TpStart(RED) {
 
 // Export the module definition, this is consumed by Node-RED on startup.
 module.exports = function(RED) {
-    TpStart(RED)
+    TpOngoing(RED)
 }
