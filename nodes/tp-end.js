@@ -7,6 +7,9 @@
  */
 'use strict'
 
+// Import shared utilities
+const { isCleanupFlow } = require('../lib/tp-node-utils');
+
 /** --- Type Definitions --- */
 // @typedef {import('node-red')} RED
 
@@ -65,20 +68,28 @@ async function inputMsgHandler(msg, send, done) {
         
         const task = active_tasks[task_index]
         const wasCancelled = task.cancelled || false
+        const isCleanup = isCleanupFlow(msg)
         
-        // Validate current status - task should be in 'ongoing' or 'started' to be completed
+        // Validate current status - be more flexible for cleanup flows and cancellation states
         const currentStatus = msg.tp_data.status
-        const validStatusesForCompletion = ['ongoing', 'started']
+        const validStatusesForCompletion = ['ongoing', 'started', 'created', 'cancelling']
         
         if (!validStatusesForCompletion.includes(currentStatus)) {
-            node.warn(`Task ${tpc_id} has status '${currentStatus}' which is not valid for completion. Expected: ${validStatusesForCompletion.join(' or ')}`)
+            node.warn(`Task ${tpc_id} has status '${currentStatus}' which is not valid for completion. Expected: ${validStatusesForCompletion.join(', ')}`)  
             node.status({fill: 'orange', shape: 'ring', text: `Invalid status: ${currentStatus}`})
             done()
             return
         }
         
-        // Determine final status
-        const finalStatus = wasCancelled ? 'cancelled' : 'completed'
+        // Determine final status based on cancellation state and cleanup context
+        let finalStatus
+        if (wasCancelled || currentStatus === 'cancelling') {
+            finalStatus = 'cancelled'
+        } else {
+            finalStatus = 'completed'
+        }
+        
+        const statusPrefix = isCleanup ? '[CLEANUP] ' : ''
         
         // Update tp_data with final information
         const updatedTpData = {
@@ -102,10 +113,10 @@ async function inputMsgHandler(msg, send, done) {
         }
         
         // Set node status based on completion type
-        if (wasCancelled) {
-            node.status({fill: 'orange', shape: 'dot', text: `Cancelled: ${tpc_id.substr(0, 8)}...`})
+        if (finalStatus === 'cancelled') {
+            node.status({fill: 'orange', shape: 'dot', text: `${statusPrefix}Cancelled: ${tpc_id.substr(0, 8)}...`})
         } else {
-            node.status({fill: 'green', shape: 'dot', text: `Completed: ${tpc_id.substr(0, 8)}...`})
+            node.status({fill: 'green', shape: 'dot', text: `${statusPrefix}Completed: ${tpc_id.substr(0, 8)}...`})
         }
         
         // Remove this task from active tasks

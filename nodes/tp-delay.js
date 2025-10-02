@@ -7,6 +7,9 @@
  */
 'use strict'
 
+// Import shared utilities
+const { isCleanupFlow, isTaskCancelled, markAsCleanup } = require('../lib/tp-node-utils');
+
 //#region ----- Module level variables ---- //
 
 /** Main module variables */
@@ -43,30 +46,23 @@ function inputMsgHandler(msg, send, done) {
             return
         }
         
-        node.status({fill: 'yellow', shape: 'dot', text: `Delaying ${delayMs}ms - ${tpc_id.substr(0, 8)}...`})
+        // Check if this is a cleanup flow (bypass cancellation)
+        const isCleanup = isCleanupFlow(msg)
+        const statusPrefix = isCleanup ? '[CLEANUP] ' : ''
         
-        // Function to check if this specific task was cancelled
-        const isTaskCancelled = () => {
-            const active_tasks = flow.get('active_tasks') || []
-            const task = active_tasks.find(t => t.tpc_id === tpc_id)
-            
-            // Check both new format and legacy format for backward compatibility
-            if (task && task.cancelled) return true
-            if (flow.get('current_tpc_id') === tpc_id && flow.get('task_cancelled')) return true
-            
-            return false
-        }
+        node.status({fill: 'yellow', shape: 'dot', text: `${statusPrefix}Delaying ${delayMs}ms - ${tpc_id.substr(0, 8)}...`})
         
         // Start delay timer
         const timer = setTimeout(() => {
-            // Final check if cancelled during delay
-            if (isTaskCancelled()) {
+            // Final check if cancelled during delay (skip for cleanup flows)
+            if (isTaskCancelled(flow, tpc_id, msg)) {
                 // Output 2: Cancellation
                 node.status({fill: 'orange', shape: 'dot', text: 'Cancelled during delay'})
-                send([null, {...msg, topic: 'delay-cancelled'}])
+                send([null, markAsCleanup(msg, 'cancelled')])
             } else {
                 // Output 1: Normal completion
-                node.status({fill: 'green', shape: 'dot', text: 'Delay completed'})
+                const statusText = isCleanup ? '[CLEANUP] Delay completed' : 'Delay completed'
+                node.status({fill: 'green', shape: 'dot', text: statusText})
                 send([msg, null])
             }
             
@@ -76,14 +72,14 @@ function inputMsgHandler(msg, send, done) {
         // Store timer for potential cancellation
         node._delayTimer = timer
         
-        // Check for cancellation periodically
+        // Check for cancellation periodically (skip for cleanup flows)
         const cancelCheck = setInterval(() => {
-            if (isTaskCancelled()) {
+            if (isTaskCancelled(flow, tpc_id, msg)) {
                 clearTimeout(timer)
                 clearInterval(cancelCheck)
                 
                 node.status({fill: 'orange', shape: 'dot', text: 'Cancelled'})
-                send([null, {...msg, topic: 'delay-cancelled'}])
+                send([null, markAsCleanup(msg, 'cancelled')])
                 done()
             }
         }, 100)

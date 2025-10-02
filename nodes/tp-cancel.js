@@ -85,7 +85,9 @@ function handleCancelEvent(payload, tpc_id) {
             },
             payload: payload.payload || {},
             topic: `task-package/${tpc_id}/cancelled`,
-            _tpOriginator: node.id
+            _tpOriginator: node.id,
+            _tpCleanup: true,  // Mark as cleanup flow - tp-cancel output is for cleanup
+            _tpCleanupReason: 'cancelled'
         }
         
         // Set node status

@@ -2,11 +2,51 @@
 
 ## Overview
 
-The **node-red-task-package** module is a workflow orchestrator that provides a higher-layer abstraction for managing task execution flows. It enables external users to trigger Node-RED flows via REST API calls or internal events, with built-in security, validation, and lifecycle management capabilities.
+The **node-red-task-package** module is a workflow orchestrator that provides a higher-layer abstraction for managing task execution flows. It enables external users to trigger Node-RED flows via REST API calls or internal events, with built-in security,**Enhanced Task Completion Handling**:
+```javascript
+const tpNodeUtils = require('../lib/tp-node-utils')
+const tpc_id = msg.tp_data.tpc_id
+
+// Validate task status - accept created, started, ongoing, cancelling
+const allowedStatuses = ['ongoing', 'started', 'created', 'cancelling']
+if (!allowedStatuses.includes(msg.tp_data.status)) {
+    throw new Error(`Task has status '${msg.tp_data.status}' which is not valid for completion`)
+}
+
+// Determine final status
+const active_tasks = flow.get('active_tasks') || []
+const task = active_tasks.find(t => t.tpc_id === tpc_id)
+const wasCancelled = (task && task.cancelled) || msg.tp_data.status === 'cancelling'
+const finalStatus = wasCancelled ? 'cancelled' : 'completed'
+
+// Display status with cleanup prefix if applicable
+const isCleanup = tpNodeUtils.isCleanupFlow(msg)
+const statusPrefix = isCleanup ? '[CLEANUP] ' : ''
+
+if (finalStatus === 'cancelled') {
+    node.status({fill: 'orange', shape: 'dot', text: `${statusPrefix}Cancelled: ${tpc_id.substr(0, 8)}...`})
+} else {
+    node.status({fill: 'green', shape: 'dot', text: `${statusPrefix}Completed: ${tpc_id.substr(0, 8)}...`})
+}
+
+// Update database and clean up task tracking
+await taskPackageDB.updateTaskStatus(tpc_id, finalStatus)
+if (task_index !== -1) {
+    active_tasks.splice(task_index, 1)
+    flow.set('active_tasks', active_tasks)
+}
+```fecycle management capabilities.
 
 **Key Features**:
+- **Interactive API Documentation**: Complete Swagger/OpenAPI documentation at `/task-package/docs`
+- **Live Configuration Updates**: Configuration changes take effect immediately without Node-RED restart
+- **Two-State Cancellation**: Proper cancellation flow with 'cancelling' → 'cancelled' states
+- **Enhanced Validation**: Comprehensive request validation with proper error responses
 - **Parallel Task Execution**: Multiple task packages can run simultaneously within the same flow
-- **Event-Driven Cancellation**: Robust cancellation system with proper event propagation
+- **Event-Driven Cancellation**: Robust cancellation system with task-specific isolation
+- **Cleanup Flow Handling**: Intelligent detection and handling of cancellation cleanup flows
+- **Shared Node Utilities**: Common patterns for business logic nodes with consistent cancellation handling
+- **Cancellation Isolation**: Task-specific cancellation prevents cross-task interference
 - **Flexible Payload Handling**: Dynamic payload extraction with tp_id/user as control parameters
 - **Auto-Discovery**: tp-cancel nodes automatically discover and monitor all active tasks
 - **Database Synchronization**: Automatic task_packages table updates on deployment
@@ -72,36 +112,59 @@ sequenceDiagram
 
 ### REST Endpoints
 
-#### GET `/task-package/status`
-**Purpose**: Retrieve available task packages for the authenticated user
+#### Interactive API Documentation
+**GET `/task-package/docs`**
+- **Purpose**: Interactive Swagger UI documentation
+- **Features**: Complete API documentation with "Try it out" functionality
+- **Authentication**: Test Bearer token authentication directly in the UI
+- **Examples**: Request/response examples for all endpoints
+
+#### GET `/task-package/info`
+**Purpose**: List available task package definitions OR get specific one with `?tp_id=`
+
+**Query Parameters**:
+- `tp_id` (optional): Get specific task package by ID
 
 **Response Format**:
 ```json
 [
     {
-        "id": "tp01",
-        "name": "linen_delivery", 
-        "form_url": "/dashboard/linen_delivery",
-        "created_at": "2025-09-18 04:35:42",
-        "updated_at": "2025-09-18 04:35:42"
+        "tp_id": "tp01",
+        "name": "Linen Delivery", 
+        "form_url": "linen_delivery",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "room": {"type": "string"}
+            }
+        }
     }
 ]
 ```
 
-**Note**: The `form_url` is returned exactly as stored in the database without any path manipulation
-
-#### GET `/task-package`
-**Purpose**: List all available task package definitions
+#### GET `/task-package/status`
+**Purpose**: Retrieve task instance status with optional filtering
 
 **Query Parameters**:
-- `tp_id` (optional): Get specific task package by ID
+- `tpc_id` (optional): Specific task instance ID
+- `tp_id` (optional): Filter by task package ID
+- `user` (optional): Filter by user
+- `status` (optional): Filter by status (created, started, ongoing, completed, cancelling, cancelled, failed)
 
-**Response Format**: Same as `/task-package/status` with complete form URLs constructed
-
-#### GET `/task-package/status/:tpc_id`
-**Purpose**: Get specific task package instance status
-
-**Response**: Same format as above, filtered by `tpc_id`
+**Response Format**:
+```json
+[
+    {
+        "tpc_id": "550e8400-e29b-41d4-a716-446655440000",
+        "tp_id": "tp01",
+        "tp_name": "Linen Delivery",
+        "user": "admin",
+        "status": "ongoing",
+        "created_at": "2025-10-02T14:30:00Z",
+        "updated_at": "2025-10-02T14:32:00Z"
+    }
+]
+```
 
 #### POST `/task-package/start`
 **Purpose**: Initialize a new task package execution
@@ -131,34 +194,64 @@ sequenceDiagram
 ```json
 {
     "tpc_id": "550e8400-e29b-41d4-a716-446655440000",
-    "status": "started"
+    "status": "created"
 }
 ```
 
 #### POST `/task-package/cancel`
-**Purpose**: Cancel a running task package
+**Purpose**: Cancel a running task package (with comprehensive validation)
 
 **Request Body**:
 ```json
 {
     "tp_id": "tp01",
-    "tpc_id": "550e8400-e29b-41d4-a716-446655440000"
+    "tpc_id": "550e8400-e29b-41d4-a716-446655440000",
+    "reason": "User requested cancellation"
 }
 ```
+
+**Validation Process**:
+1. Verifies `tpc_id` exists in database
+2. Validates `tpc_id` belongs to specified `tp_id`
+3. Checks task is in cancellable state (not completed, cancelled, or failed)
+4. Handles idempotent requests (already cancelling)
+
+**Response**:
+```json
+{
+    "status": "cancelling"
+}
+```
+
+**Error Responses**:
+- `400`: Missing parameters, task not cancellable, or tp_id mismatch
+- `404`: Task instance not found
+- `401/403`: Authentication/authorization errors
+
+**Two-State Cancellation Flow**:
+1. **API Call** → Database status: `'created'|'started'|'ongoing'` → `'cancelling'`
+2. **Node-RED Flow** → Processes cancellation → tp-end updates to `'cancelled'`
 
 ## Service Layer (Node-RED Nodes)
 
 ### Node Specifications
 
 #### Configuration Node: `tp-config`
-**Purpose**: Global configuration for task package system
+**Purpose**: Global configuration for task package system with live updates
 
 **Configuration Properties**:
 - `oidc_url`: OIDC provider URL (optional)
   - Auto-detects provider type (Keycloak, Auth0, Azure AD, Okta, Google, AWS Cognito)
   - Example: `http://10.233.0.80:8080/realms/chart-sandbox`
-  - If empty, security layer is bypassed
+  - If empty, security layer is bypassed (defaults to 'admin' user)
 - `db_url`: Database file path (default: `/tmp/sqlite`)
+
+**Live Configuration Updates**:
+- Configuration changes take effect immediately on deployment
+- No Node-RED restart required
+- First deployment: Full API initialization
+- Subsequent deployments: Configuration update only
+- Database connections are refreshed with new settings
 
 #### Flow Control Nodes
 
@@ -238,16 +331,19 @@ msg.payload = {
 ##### `tp-end` (Exit Point)
 - **Inputs**: 1 (from flow)
 - **Outputs**: None
-- **Purpose**: Terminate task package execution
+- **Purpose**: Terminate task package execution with enhanced cancellation state handling
 
 **Behavior**:
-1. Receives `msg.tp_data` via message passing from upstream nodes
-2. Identifies specific task by `msg.tp_data.tpc_id`
-3. Finds task in active_tasks array or checks legacy context
-4. Determines cancellation status for this specific task
-5. Updates status to 'completed' or 'cancelled' in database
-6. Removes task from active_tasks array
-7. Cleans up legacy context if this was the current task
+1. Uses shared `tp-node-utils` for cleanup flow detection
+2. Receives `msg.tp_data` via message passing from upstream nodes
+3. Identifies specific task by `msg.tp_data.tpc_id`
+4. Validates task status (accepts 'ongoing', 'started', 'created', 'cancelling')
+5. Finds task in active_tasks array or checks legacy context
+6. Determines final status: 'cancelled' if task was cancelled or status is 'cancelling', otherwise 'completed'
+7. Updates database with final status
+8. Displays appropriate status with cleanup prefix if applicable
+9. Removes task from active_tasks array
+10. Cleans up legacy context if this was the current task
 
 **Parallel Task Handling**:
 ```javascript
@@ -351,50 +447,113 @@ function handleCancelEvent(payload, tpc_id) {
 2. Updates `updated_at` timestamp
 3. Does not change main `status` field
 
+#### Shared Utilities: `tp-node-utils.js`
+**Purpose**: Provides shared utilities and patterns for business logic tp-nodes to ensure consistent cancellation handling and cleanup flow detection.
+
+**Key Functions**:
+- `isCleanupFlow(msg)`: Detects if a message is part of a cleanup flow
+- `isTaskCancelled(msg, flow)`: Checks if a specific task is cancelled
+- `markAsCleanup(msg)`: Marks a message as part of a cleanup flow
+- `handleCancellableNode(node, msg, flow, businessLogic)`: General pattern for cancellable nodes
+
+**Cleanup Flow Detection**:
+```javascript
+function isCleanupFlow(msg) {
+    return msg && (
+        msg.cleanup === true ||                    // Explicit cleanup flag
+        msg.topic === 'delay-cancelled' ||        // From tp-delay cancelled output
+        (msg.tp_data && msg.tp_data.mode === 'cancel') ||  // From tp-cancel
+        msg._isCleanupFlow === true               // Internal cleanup marker
+    )
+}
+```
+
+**Task-Specific Cancellation**:
+```javascript
+function isTaskCancelled(msg, flow) {
+    if (!msg || !msg.tp_data || !msg.tp_data.tpc_id) return false
+    
+    const tpc_id = msg.tp_data.tpc_id
+    const active_tasks = flow.get('active_tasks') || []
+    const task = active_tasks.find(t => t.tpc_id === tpc_id)
+    
+    return task && task.cancelled
+}
+```
+
+**General Pattern for Business Logic Nodes**:
+```javascript
+function handleCancellableNode(node, msg, flow, businessLogic) {
+    // Check if this is a cleanup flow - if so, process normally
+    if (isCleanupFlow(msg)) {
+        node.status({fill: 'blue', shape: 'dot', text: '[CLEANUP] Processing'})
+        return businessLogic(msg)
+    }
+    
+    // For non-cleanup flows, check cancellation
+    if (isTaskCancelled(msg, flow)) {
+        node.status({fill: 'orange', shape: 'dot', text: 'Task cancelled'})
+        return // Don't process cancelled tasks
+    }
+    
+    // Normal processing
+    return businessLogic(msg)
+}
+```
+
 ##### `tp-delay` (Cancellable Delay)
 - **Inputs**: 1 (from flow)
 - **Outputs**: 2 (success, cancelled)
-- **Purpose**: Introduce time delays with cancellation support
+- **Purpose**: Introduce time delays with cancellation support and cleanup flow handling
 
 **Configuration**:
 - `delay_time`: Delay duration in milliseconds
 
 **Behavior**:
-1. Starts delay timer on message receipt
-2. Extracts `tpc_id` from `msg.tp_data.tpc_id`
-3. Monitors task-specific cancellation via active_tasks array
+1. Uses shared `tp-node-utils` for consistent cancellation handling
+2. Detects cleanup flows and processes them normally (no cancellation check)
+3. For non-cleanup flows, monitors task-specific cancellation via active_tasks array
 4. Supports both new parallel format and legacy single-task format
 5. Output 1: Normal completion after delay
-6. Output 2: Early termination due to cancellation
+6. Output 2: Early termination due to cancellation (marked as cleanup flow)
+7. Cancellation isolation: Only checks specific task's cancellation status
 
-**Task-Specific Cancellation Checking**:
+**Enhanced Cancellation and Cleanup Handling**:
 ```javascript
-const isTaskCancelled = () => {
-    const tpc_id = msg.tp_data.tpc_id
-    const active_tasks = flow.get('active_tasks') || []
-    const task = active_tasks.find(t => t.tpc_id === tpc_id)
-    
-    // Check new parallel format
-    if (task && task.cancelled) return true
-    
-    // Check legacy format for backward compatibility
-    if (flow.get('current_tpc_id') === tpc_id && flow.get('task_cancelled')) return true
-    
-    return false
+const tpNodeUtils = require('../lib/tp-node-utils')
+
+// Check if this is a cleanup flow - if so, process normally
+if (tpNodeUtils.isCleanupFlow(msg)) {
+    node.status({fill: 'blue', shape: 'dot', text: '[CLEANUP] Delaying...'})
+    // Process delay normally without cancellation checks
+    const timer = setTimeout(() => {
+        send([{...msg, _isCleanupFlow: true}, null])
+        done()
+    }, delayTime)
+    return
 }
 
-// Periodic cancellation check during delay
+// For non-cleanup flows, monitor task-specific cancellation
 const cancelCheck = setInterval(() => {
-    if (isTaskCancelled()) {
+    if (tpNodeUtils.isTaskCancelled(msg, flow)) {
         clearTimeout(timer)
         clearInterval(cancelCheck)
         
-        // Output to second port (cancelled)
-        send([null, {...msg, topic: 'delay-cancelled'}])
+        // Mark as cleanup flow and output to cancelled port
+        const cancelledMsg = tpNodeUtils.markAsCleanup({...msg, topic: 'delay-cancelled'})
+        send([null, cancelledMsg])
         done()
     }
 }, 100)
 ```
+
+**Cancellation Isolation and Cleanup Flows**:
+- Each task's cancellation state is completely isolated using task-specific `tpc_id`
+- Cancelled tasks can route to cleanup flows with more tp-delay nodes
+- Cleanup flows are automatically detected and processed normally (no cancellation interference)
+- Cleanup flow markers: `cleanup: true`, `topic: 'delay-cancelled'`, `tp_data.mode: 'cancel'`, `_isCleanupFlow: true`
+- Supports complex cancellation workflows with multi-step cleanup processes
+- Shared utilities ensure consistent behavior across all business logic nodes
 
 #### Data Storage Nodes
 
@@ -596,10 +755,12 @@ CREATE TABLE IF NOT EXISTS task_packages_created (
 
 **Status Values**:
 - `created`: Initial state (API layer)
-- `underway`: Execution started (tp-start)
+- `started`: Task instance initiated (tp-start)
+- `ongoing`: Task actively executing
+- `cancelling`: Cancellation requested but not yet completed (API cancel endpoint)
+- `cancelled`: Cancellation completed (tp-end after processing cancel event)
 - `completed`: Normal completion (tp-end)
-- `cancelled`: User-requested cancellation (tp-end after tp-cancel)
-- `cancelling`: Cancellation in progress (tp-cancel)
+- `failed`: Task failed with error
 
 ## Flow Patterns
 
@@ -651,6 +812,26 @@ Flow 2: [tp-cancel] ──→ [tp-data-get] ──→ [cleanup with stored data]
                          └─→ enriched with original task data
 ```
 
+### Cleanup Flow Patterns
+```
+Main Flow:    [tp-start] ──→ [tp-delay] ──→ [business logic] ──→ [tp-end]
+                              │
+                              └─→ [cleanup step 1] ──→ [tp-delay] ──→ [cleanup step 2] ──→ [tp-end]
+                                                          │
+Cancel Flow:  [tp-cancel] ──→ [cleanup step A] ──→ [tp-delay] ──→ [cleanup step B] ──→ [tp-end]
+```
+*Note: All cleanup tp-delay nodes process normally regardless of cancellation status*
+
+### Complex Cancellation with Multi-Step Cleanup
+```
+Task: [tp-start] ──→ [reserve resource] ──→ [tp-delay:processing] ──→ [complete] ──→ [tp-end]
+                                              │
+                                              └─→ [release resource] ──→ [tp-delay:cleanup] ──→ [notify] ──→ [tp-end]
+                                                                          │
+[tp-cancel] ──→ [emergency cleanup] ──→ [tp-delay:emergency] ──→ [final cleanup] ──→ [tp-end]
+```
+*Note: Each cleanup flow operates independently without cancellation interference*
+
 ### Complex Data Persistence Pattern
 ```
 Main Flow:   [tp-start] ──→ [tp-data-store] ──→ [process] ──→ [tp-end]
@@ -658,6 +839,46 @@ Main Flow:   [tp-start] ──→ [tp-data-store] ──→ [process] ──→ 
 Cancel Flow: [tp-cancel] ──→ [tp-data-get] ──→ [restore state] ──→ [cleanup]
 Update Flow: [external] ──→ [tp-data-get] ──→ [status check] ──→ [respond]
 ```
+
+## API Documentation and Testing
+
+### Interactive Swagger Documentation
+Access complete API documentation at `/task-package/docs`:
+
+**Features**:
+- **Interactive Testing**: "Try it out" functionality for all endpoints
+- **Authentication Support**: Bearer token input for testing secured endpoints
+- **Request/Response Examples**: Complete examples with realistic data
+- **Schema Validation**: Request/response schema documentation
+- **Error Code Documentation**: Complete error response documentation
+
+**Testing Workflow**:
+1. Navigate to `http://your-node-red:1880/task-package/docs`
+2. Expand desired endpoint
+3. Click "Try it out"
+4. Fill in parameters and request body
+5. Add Bearer token if authentication is enabled
+6. Execute request and view response
+
+### API Dependencies
+Required npm packages for API documentation:
+```json
+{
+  "swagger-ui-express": "^4.6.0",
+  "swagger-jsdoc": "^6.2.0"
+}
+```
+
+### Configuration Testing
+**Without Authentication**:
+- Leave `oidc_url` empty in tp-config
+- All requests are treated as 'admin' user
+- Perfect for development and testing
+
+**With Authentication**:
+- Configure `oidc_url` in tp-config
+- Deploy changes (takes effect immediately)
+- Test with valid Bearer tokens in Swagger UI
 
 ## Security Model
 
@@ -791,6 +1012,9 @@ Internal event system uses Node-RED's native message passing with standardized t
 - **Event System Failures**: Logged but don't break flow execution
 - **Parallel Task Conflicts**: Each task maintains independent state
 - **Database Sync Failures**: Logged as warnings, don't prevent flow execution
+- **Cleanup Flow Failures**: Cleanup flows continue processing regardless of main task cancellation
+- **Cancellation Isolation**: Failed cancellation in one task doesn't affect others
+- **Invalid Task Status**: tp-end validates status and provides clear error messages
 
 ### Deployment Considerations
 - Database file permissions and persistence
@@ -814,20 +1038,20 @@ Internal event system uses Node-RED's native message passing with standardized t
 - **Cross-Flow Communication**: Task packages spanning multiple flows
 - **Priority Queuing**: Task execution priority management
 
-### Recently Implemented (v2.1)
-- ✅ **Simplified OIDC Configuration**: Removed Keycloak-specific components, generic OIDC provider support
-- ✅ **Multi-Provider OIDC**: Auto-detection for Keycloak, Auth0, Azure AD, Okta, Google, AWS Cognito
-- ✅ **Cross-Flow Data Storage**: tp-data-store and tp-data-get nodes with TTL management
-- ✅ **Field Naming Clarity**: Refactored tp_data.id to tp_data.tpc_id for better readability
-- ✅ **Complete Form URLs**: API endpoints return fully constructed dashboard URLs
-- ✅ **Configuration Auto-Discovery**: Only tp-start nodes show configuration dropdown
-- ✅ **Parallel Task Execution**: Multiple tasks per flow  
-- ✅ **Auto-Discovery Cancellation**: tp-cancel monitors all active tasks
-- ✅ **Dynamic Payload Processing**: Flexible API parameter handling
-- ✅ **Database Auto-Sync**: Automatic task_packages table updates
-- ✅ **Backward Compatibility**: Legacy flows continue working
-- ✅ **Event System Fixes**: Proper event parameter ordering and propagation
-- ✅ **Robust Error Handling**: Graceful degradation and comprehensive logging
+### Recently Implemented (v2.3)
+- ✅ **Interactive API Documentation**: Complete Swagger/OpenAPI documentation with interactive UI
+- ✅ **Live Configuration Updates**: Configuration changes take effect without Node-RED restart
+- ✅ **Enhanced API Validation**: Comprehensive request validation for cancel endpoint
+- ✅ **Two-State Cancellation**: Proper 'cancelling' → 'cancelled' state flow
+- ✅ **Improved Cancellation Isolation**: Task-specific cancellation without global interference
+- ✅ **Shared Node Utilities**: tp-node-utils.js with common patterns for business logic nodes
+- ✅ **Cleanup Flow Detection**: Intelligent detection and handling of cancellation cleanup flows
+- ✅ **Enhanced tp-delay**: Cleanup flow support with cancellation isolation
+- ✅ **Enhanced tp-end**: Improved status validation and cleanup flow handling
+- ✅ **API Endpoint Reorganization**: Renamed GET '/' to '/info' for better API structure
+- ✅ **Default User Enhancement**: Changed anonymous to 'admin' when auth disabled
+- ✅ **Status Enum Updates**: Added 'cancelling' state to status filtering
+- ✅ **Error Response Improvements**: Enhanced error responses with current status information
 
 ### Integration Points
 - **RMF Nodes**: Task packages can orchestrate robot tasks
@@ -867,6 +1091,6 @@ Internal event system uses Node-RED's native message passing with standardized t
 
 *This document serves as the authoritative reference for the node-red-task-package module design and implementation.*
 
-**Document Version**: 2.1  
-**Last Updated**: September 18, 2025  
-**Key Changes**: Added tp-data storage nodes, simplified OIDC configuration with multi-provider support, improved field naming clarity (tpc_id), complete form URL construction, and configuration auto-discovery.
+**Document Version**: 2.3  
+**Last Updated**: October 2, 2025  
+**Key Changes**: Added shared tp-node-utils with common patterns for business logic nodes, implemented intelligent cleanup flow detection and handling, enhanced tp-delay and tp-end nodes with cleanup flow support, improved cancellation isolation to prevent cross-task interference, and established consistent patterns for cancellable node development.
