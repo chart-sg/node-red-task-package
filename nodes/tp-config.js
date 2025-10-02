@@ -57,13 +57,12 @@ function nodeInstance(config) {
         this.warn('OIDC provider URL should start with http:// or https://')
     }
 
-    // Initialize API if not already done
-    if (!mod.apiInitialized) {
-        try {
-            // Get Node-RED's Express app
+    // Initialize or update API configuration
+    try {
+        if (!mod.apiInitialized) {
+            // First time initialization
             const app = RED.httpNode || RED.httpAdmin
             
-            // Initialize API routes
             taskPackageAPI.initializeRoutes(app, {
                 keycloak_url: finalOidcUrl,
                 db_url: this.db_url
@@ -71,10 +70,18 @@ function nodeInstance(config) {
             
             mod.apiInitialized = true
             this.log('✅ Task Package API initialized on Node-RED server')
+        } else {
+            // Update existing configuration
+            taskPackageAPI.updateConfig({
+                keycloak_url: finalOidcUrl,
+                db_url: this.db_url
+            })
             
-        } catch (error) {
-            this.error('Failed to initialize Task Package API: ' + error.message)
+            this.log('🔄 Task Package API configuration updated')
         }
+        
+    } catch (error) {
+        this.error('Failed to initialize/update Task Package API: ' + error.message)
     }
     
     // Set status indicator
