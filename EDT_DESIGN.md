@@ -2,13 +2,15 @@
 
 ## Overview
 
-The **Event-Driven Tasks (EDT)** module extends the node-red-task-package system to handle real-time sensor data streams and automatically manage Task Package (TP) lifecycles based on dynamic conditions. EDT provides intelligent resource conflict resolution, state management, and priority-based decision making for complex automation scenarios.
+The **Event-Driven Tasks (EDT)** module extends the node-red-task-package system to handle real-time sensor data streams and automatically manage Task Package (TP) lifecycles based on dynamic conditions. EDT provides intelligent resource conflict resolution, state management, and priority-based decision making for interactive robot automation scenarios.
 
 **Key Features**:
 - **Real-Time Event Processing**: Handle continuous sensor data streams with smart filtering
-- **Resource Conflict Resolution**: Intelligent priority-based robot and resource allocation
+- **Graceful Task Interruption**: Intelligently interrupt interactive tasks (education, social visits) for emergencies
+- **Resource Conflict Resolution**: Priority-based robot allocation with graceful handoff capabilities
 - **Cross-Flow State Management**: Maintain state across different flows and contexts
 - **Dynamic TP Control**: Start, cancel, and update Task Packages based on events
+- **Human-Robot Collaboration**: Enable smooth transitions between robot and human staff
 - **Flexible Enable/Disable**: Granular control over EDT functionality by scope
 - **User-Defined Logic**: Leverage existing Node-RED nodes for custom business logic
 
@@ -76,9 +78,14 @@ The **Event-Driven Tasks (EDT)** module extends the node-red-task-package system
 {
   "bed_id": "ward1_room12_bed3",
   "event_type": "bed_exit",
-  "robot_assigned": "tinyRobot2",
+  "robot_assigned": "temi_robot_1",
   "priority": 10,
   "timestamp": "2025-09-22T10:30:00Z",
+  "current_task": {
+    "type": "patient_education",
+    "location": "ward1_room8_bed2",
+    "interruptible": true
+  },
   "tp_data": {
     "tpc_id": "550e8400-e29b-41d4-a716-446655440000",
     "tp_id": "bed_exit_response",
@@ -107,8 +114,8 @@ The **Event-Driven Tasks (EDT)** module extends the node-red-task-package system
     "business_key": "ward1_room12_bed3",
     "state_change": true,  // Changed from "sit_up" to "bed_exit"
     "current": {
-      "status": "bed_exit",
-      "robot_assigned": "tinyRobot2",
+      "status": "bed_exit_emergency",
+      "robot_assigned": "temi_robot_1",
       "priority": 10,
       "tpc_id": "550e8400-e29b-41d4-a716-446655440000",
       "tp_id": "bed_exit_response",
@@ -116,20 +123,24 @@ The **Event-Driven Tasks (EDT)** module extends the node-red-task-package system
       "timestamp": "2025-09-22T10:30:00Z"
     },
     "previous": {
-      "status": "sit_up",
-      "robot_assigned": "tinyRobot2", 
-      "priority": 1,
+      "status": "patient_education",
+      "robot_assigned": "temi_robot_1", 
+      "priority": 3,
       "tpc_id": "abc12345-1234-5678-9abc-123456789abc",
-      "tp_id": "robot_standby",
-      "last_event": "sit_up",
+      "tp_id": "diabetes_education",
+      "last_event": "education_session",
+      "location": "ward1_room8_bed2",
+      "can_handoff_to_human": true,
       "timestamp": "2025-09-22T10:25:00Z"
     },
     "resource_conflicts": {
-      "tinyRobot2": {
+      "temi_robot_1": {
         "has_conflict": true,
-        "current_task": "delivery_to_patrol_D1",
+        "current_task": "patient_education_diabetes",
+        "current_location": "ward1_room8_bed2",
         "current_priority": 3,
         "new_priority": 10,
+        "interruption_strategy": "graceful_handoff",
         "needs_cancellation": "abc12345-1234-5678-9abc-123456789abc"
       }
     },
@@ -227,10 +238,19 @@ The **Event-Driven Tasks (EDT)** module extends the node-red-task-package system
     "timeout_ms": 300000
   },
   "resource_mapping": {
-    "tinyRobot2": {
-      "type": "robot",
-      "capabilities": ["delivery", "bed_response"],
-      "location_constraints": ["ward1", "ward2"]
+    "temi_robot_1": {
+      "type": "social_robot",
+      "capabilities": ["patient_education", "social_interaction", "emergency_response", "medication_reminders"],
+      "location_constraints": ["ward1", "ward2"],
+      "interruptible_tasks": ["patient_education", "social_interaction", "routine_patrol"],
+      "handoff_capable": true
+    },
+    "delivery_robot_1": {
+      "type": "delivery_robot",
+      "capabilities": ["medication_delivery", "supply_transport"],
+      "location_constraints": ["all_wards"],
+      "interruptible_tasks": [],
+      "handoff_capable": false
     }
   }
 }
@@ -696,7 +716,7 @@ tp_data_store.get("550e8400-e29b-41d4-a716-446655440000") → {
 
 ## Real-World Examples
 
-### Bed Exit Scenario (Your Use Case)
+### Patient Education Interrupted by Bed Exit Emergency
 ```javascript
 // Flow Configuration
 [MQTT: hospital/bed/+/+/+/events] 
@@ -705,9 +725,23 @@ tp_data_store.get("550e8400-e29b-41d4-a716-446655440000") → {
     ↓ (enabled)
 [Function: Parse bed event] 
     ↓
-[Switch: bed-exit vs sit-up]
+[Switch: bed-exit vs sit-up vs normal]
     ↓
 [edt-state: Update bed status]
+    ↓
+[edt-priority: Check robot conflicts - Temi doing education]
+    ↓
+[edt-action: Gracefully interrupt education, start bed-exit emergency response]
+
+// Priority Matrix for Realistic Scenarios
+Task Type                | Priority | Can Interrupt | Handoff to Human
+------------------------|----------|---------------|------------------
+Bed exit emergency      |    10    |     Never     |       No
+Medication reminder     |     8    |  Only by 10   |      Yes
+Call button response    |     7    |  Only by 8+   |      Yes
+Patient education       |     3    |  Yes (5+)     |      Yes
+Social interaction      |     2    |  Yes (3+)     |      Yes
+Routine patrol          |     1    |  Yes (2+)     |       No
     ↓
 [edt-priority: Check robot conflicts]
     ↓
@@ -718,70 +752,170 @@ tp_data_store.get("550e8400-e29b-41d4-a716-446655440000") → {
   "edt_state_bed_monitoring": {
     "ward1_room12_bed3": {
       "current_state": {
-        "status": "bed_exit",
-        "robot_assigned": "tinyRobot2",
+        "status": "bed_exit_emergency",
+        "robot_assigned": "temi_robot_1",
         "priority": 10,
-        "tpc_id": "550e8400-e29b-41d4-a716-446655440000",  // New bed-exit TP
-        "tp_id": "bed_exit_response"
+        "tpc_id": "550e8400-e29b-41d4-a716-446655440000",  // New emergency response TP
+        "tp_id": "bed_exit_emergency_response"
       },
       "previous_state": {
-        "status": "sit_up",
-        "tpc_id": "abc12345-1234-5678-9abc-123456789abc",  // Previous standby TP
-        "tp_id": "robot_standby"
+        "status": "normal",
+        "tpc_id": "abc12345-1234-5678-9abc-123456789abc",  // Previous monitoring TP
+        "tp_id": "bed_monitoring"
+      }
+    },
+    "ward1_room8_bed2": {
+      "current_state": {
+        "status": "education_interrupted",
+        "robot_assigned": null,  // Robot reassigned
+        "priority": 3,
+        "handoff_to_human": true,
+        "session_progress": "60%",
+        "topic": "diabetes_management"
       }
     }
   },
   "edt_state_robot_allocation": {
-    "tinyRobot2": {
+    "temi_robot_1": {
       "current_assignment": {
-        "tpc_id": "xyz98765-4321-8765-4321-987654321xyz",  // Current delivery TP
-        "tp_id": "tp02",
+        "tpc_id": "550e8400-e29b-41d4-a716-446655440000",  // Emergency response
+        "tp_id": "bed_exit_emergency_response",
+        "priority": 10,
+        "location": "ward1_room12_bed3",
+        "task_type": "emergency_response"
+      },
+      "previous_assignment": {
+        "tpc_id": "xyz98765-4321-8765-4321-987654321xyz",  // Interrupted education
+        "tp_id": "patient_education",
         "priority": 3,
-        "location": "patrol_D1"
+        "location": "ward1_room8_bed2",
+        "task_type": "patient_education",
+        "interrupted_at": "60%",
+        "handoff_status": "pending_human_takeover"
       }
     }
   }
 }
 
-// Priority Decision with UUIDs
+// Priority Decision with Graceful Interruption
 {
   "cancel_tasks": [{
-    "tpc_id": "xyz98765-4321-8765-4321-987654321xyz",  // Cancel delivery
-    "tp_id": "tp02",
-    "reason": "bed_exit_priority_override"
+    "tpc_id": "xyz98765-4321-8765-4321-987654321xyz",  // Cancel education
+    "tp_id": "patient_education",
+    "reason": "bed_exit_emergency_override",
+    "cancellation_type": "graceful_interruption",
+    "handoff_message": "Excuse me, I need to attend to an urgent matter. A nurse will continue with you shortly.",
+    "session_state": {
+      "progress": "60%",
+      "topic": "diabetes_management",
+      "resume_with_human": true
+    }
   }],
   "start_tasks": [{
-    "tp_id": "bed_exit_response",
-    "expected_tpc_id": "550e8400-e29b-41d4-a716-446655440000",  // Will be generated
+    "tp_id": "bed_exit_emergency_response",
+    "expected_tpc_id": "550e8400-e29b-41d4-a716-446655440000",
     "payload": {
-      "robot_name": "tinyRobot2",
-      "robot_fleet": "tinyRobot",
+      "robot_name": "temi_robot_1",
+      "robot_fleet": "temi",
       "bed_location": "ward1_room12_bed3",
-      "urgency": "high"
+      "urgency": "high",
+      "response_type": "immediate_assessment",
+      "emergency_protocols": ["patient_safety", "nurse_notification"]
     }
+  }],
+  "notify_staff": [{
+    "location": "ward1_room8_bed2",
+    "message": "Patient education session interrupted at 60% completion. Please continue diabetes management education.",
+    "priority": "medium"
   }]
 }
 ```
 
-### Wheelchair Zone Scenario
-```javascript
-// Flow Configuration  
-[HTTP: parking/zones/status]
-    ↓
-[Function: Detect new wheelchair]
-    ↓
-[edt-state: Update zone queue]
-    ↓
-[edt-priority: Interrupt current cycle]
-    ↓
-[edt-action: Start priority wheelchair service]
+### Practical Interruption Scenarios
 
-// State Management
-{
-  "service_queue": ["zone_a", "zone_b", "zone_c"],
-  "robot_status": "en_route_to_zone_b",
-  "priority_insertions": ["zone_a"]  // New wheelchair detected
+#### Scenario 1: Temi Education → Bed Exit Emergency
+```javascript
+// Initial State: Temi teaching diabetes management
+Current Task: {
+  "tp_id": "patient_education",
+  "robot": "temi_robot_1", 
+  "location": "ward1_room8_bed2",
+  "priority": 3,
+  "progress": "60% complete"
 }
+
+// Emergency Event: Patient fall at different bed
+Event: {
+  "type": "bed_exit",
+  "location": "ward1_room12_bed3",
+  "priority": 10,
+  "robot_needed": "temi_robot_1"
+}
+
+// EDT Action: Graceful interruption
+Action: {
+  "message_to_patient": "Excuse me, I need to attend to an urgent matter. A nurse will continue with you shortly.",
+  "cancel_task": "patient_education",
+  "start_task": "bed_exit_emergency",
+  "notify_staff": "Education session interrupted at 60% - resume with human staff"
+}
+```
+
+#### Scenario 2: Social Visit → Medication Reminder
+```javascript
+// Initial State: Temi chatting with lonely patient
+Current Task: {
+  "tp_id": "social_interaction",
+  "robot": "temi_robot_1",
+  "location": "ward2_room5_bed1", 
+  "priority": 2,
+  "emotional_support": true
+}
+
+// Scheduled Event: Insulin reminder for diabetic patient
+Event: {
+  "type": "medication_reminder",
+  "location": "ward2_room7_bed2",
+  "priority": 8,
+  "medication": "insulin",
+  "time_critical": true
+}
+
+// EDT Action: Polite transition
+Action: {
+  "message_to_patient": "It's been lovely talking with you. I need to help another patient with their medication now. I'll try to visit again later!",
+  "cancel_task": "social_interaction", 
+  "start_task": "medication_reminder",
+  "schedule_return": "after_medication_complete"
+}
+```
+
+#### Scenario 3: Routine Patrol → Call Button Response
+```javascript
+// Initial State: Temi doing hallway safety patrol
+Current Task: {
+  "tp_id": "safety_patrol",
+  "robot": "temi_robot_1",
+  "location": "ward1_hallway",
+  "priority": 1,
+  "route_progress": "25%"
+}
+
+// Patient Event: Call button pressed
+Event: {
+  "type": "call_button", 
+  "location": "ward1_room3_bed1",
+  "priority": 7,
+  "patient_request": "assistance_needed"
+}
+
+// EDT Action: Immediate response
+Action: {
+  "cancel_task": "safety_patrol",
+  "start_task": "call_button_response",
+  "resume_patrol": "after_call_complete"
+}
+```
 ```
 
 ## Implementation Questions
@@ -889,9 +1023,18 @@ tp_data_store.get("550e8400-e29b-41d4-a716-446655440000") → {
 
 ---
 
-**Document Version**: 1.1  
-**Last Updated**: September 25, 2025  
-**Status**: Design Phase - Enhanced with UUID Management Specifications
+**Document Version**: 1.2  
+**Last Updated**: October 3, 2025  
+**Status**: Design Phase - Enhanced with Practical Robot Interaction Scenarios
+
+**Key Changes in v1.2**:
+- Updated examples to focus on realistic robot interruption scenarios (patient education, social interaction)
+- Replaced impractical delivery interruption examples with Temi robot use cases
+- Added graceful task interruption patterns with human handoff capabilities
+- Enhanced priority matrix with interruptible task categories and handoff capabilities
+- Improved resource mapping to include social robots vs delivery robots
+- Added comprehensive practical scenarios (education interruption, medication reminders, call button response)
+- Updated state management examples to reflect realistic hospital workflow
 
 **Key Changes in v1.1**:
 - Added detailed edt-state implementation with UUID tpc_id handling
