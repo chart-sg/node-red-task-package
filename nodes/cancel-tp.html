@@ -1,0 +1,191 @@
+<!-- Cancel TP Node HTML -->
+<script type="text/javascript">
+    // Isolate this code
+    (function () {
+        'use strict'
+
+        const nodeLabel = 'cancel-tp'
+
+        RED.nodes.registerType(nodeLabel, {
+            category: 'Task Package',
+            color: '#FFCDD2',
+            defaults: {
+                name: { value: '' },
+                tp_id: { value: '' },
+                auth_token: { value: '' }
+            },
+            inputs: 1,
+            outputs: 0,
+            inputLabels: ['Cancel TP request'],
+            icon: 'tp.svg',
+            paletteLabel: 'Cancel Existing',
+            label: function () { 
+                return this.name || 'Cancel Existing'
+            },
+            oneditprepare: function() {
+                // Populate tp_id dropdown with available task packages
+                const populateTaskPackages = () => {
+                    const dropdown = $('#node-input-tp_id')
+                    const currentValue = this.tp_id
+                    dropdown.empty()
+                    dropdown.append('<option value="">Any task package...</option>')
+                    
+                    // Scan existing tp-create nodes in workspace for task packages
+                    RED.nodes.eachNode((node) => {
+                        if (node.type === 'tp-create' && node.tp_id) {
+                            const selected = node.tp_id === currentValue ? 'selected' : ''
+                            const displayName = node.tp_name || node.tp_id
+                            dropdown.append(`<option value="${node.tp_id}" ${selected}>${node.tp_id} - ${displayName}</option>`)
+                        }
+                    })
+                    
+                    // If no existing value and no tp-create nodes found, allow manual entry
+                    if (currentValue && dropdown.find('option[value="' + currentValue + '"]').length === 0) {
+                        dropdown.append(`<option value="${currentValue}" selected>${currentValue}</option>`)
+                    }
+                }
+                
+                // Populate on dialog open
+                populateTaskPackages.call(this)
+                
+                // Refresh button functionality
+                $('#refresh-tp-list-cancel').on('click', () => {
+                    populateTaskPackages.call(this)
+                })
+            }
+        })
+
+    })()
+</script>
+
+<script type="text/html" data-template-name="cancel-tp">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Cancel Existing">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-tp_id"><i class="fa fa-tasks"></i> Task Package ID</label>
+        <select id="node-input-tp_id" style="width: 70%;">
+            <option value="">Any task package...</option>
+        </select>
+        <button type="button" id="refresh-tp-list-cancel" class="red-ui-button" style="margin-left: 10px;">
+            <i class="fa fa-refresh"></i> Refresh
+        </button>
+        <div class="form-tips">
+            <b>Optional:</b> Restrict cancellation to specific task package type. Leave empty to allow any.
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-auth_token"><i class="fa fa-key"></i> Auth Token</label>
+        <input type="password" id="node-input-auth_token" placeholder="Bearer token">
+        <div class="form-tips">
+            <b>Optional:</b> Authentication token. Can be overridden by <code>msg.accessToken</code>.
+        </div>
+    </div>
+    
+    <div class="form-tips">
+        <p><b>Required Input Message:</b></p>
+        <ul>
+            <li><code>msg.tpc_id</code> - Task instance ID to cancel (required)</li>
+            <li><code>msg.tp_id</code> - Override the configured task package ID (optional)</li>
+            <li><code>msg.payload</code> - Additional data to include with cancellation (optional)</li>
+            <li><code>msg.accessToken</code> - Override the authentication token (optional)</li>
+        </ul>
+        <p><b>Note:</b> This node cancels TPs via API call and has no output.</p>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="cancel-tp">
+    <p>Cancels task packages via API call. This is a control node for programmatically cancelling TPs from within Node-RED flows.</p>
+    
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>tpc_id <span class="property-type">string</span></dt>
+        <dd><b>Required:</b> The task instance ID (UUID) of the specific TP to cancel.</dd>
+        
+        <dt>tp_id <span class="property-type">string</span></dt>
+        <dd><b>Optional:</b> Override the configured task package ID for this cancellation request.</dd>
+        
+        <dt>payload <span class="property-type">any</span></dt>
+        <dd><b>Optional:</b> Additional data to include with the cancellation request (e.g., reason).</dd>
+        
+        <dt>accessToken <span class="property-type">string</span></dt>
+        <dd><b>Optional:</b> Override the configured authentication token for this request.</dd>
+    </dl>
+    
+    <h3>Outputs</h3>
+    <p>None. This is a control action node that cancels task packages via API but doesn't pass data to subsequent nodes.</p>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>Name <span class="property-type">string</span></dt>
+        <dd>Optional name for this node instance.</dd>
+        
+        <dt>Task Package ID <span class="property-type">string</span></dt>
+        <dd>
+            <b>Optional:</b> Restrict cancellation to specific task package type. 
+            If specified, the API will validate that the tpc_id belongs to this tp_id.
+            Leave empty to allow cancellation of any task package type.
+        </dd>
+        
+        <dt>Auth Token <span class="property-type">string</span></dt>
+        <dd>
+            <b>Optional:</b> Bearer authentication token for API calls.
+            Can be overridden by <code>msg.accessToken</code>. Leave empty if authentication is not required.
+        </dd>
+    </dl>
+    
+    <h3>API Integration</h3>
+    <p>This node makes HTTP POST calls to <code>/task-package/cancel</code> with the following structure:</p>
+    <pre><code>{
+  "tp_id": "tp01",
+  "tpc_id": "550e8400-e29b-41d4-a716-446655440000",
+  ...payload fields
+}</code></pre>
+    
+    <h3>Status Indicators</h3>
+    <ul>
+        <li><b>Blue ring:</b> Ready to cancel TPs</li>
+        <li><b>Yellow dot:</b> API call in progress</li>
+        <li><b>Orange dot:</b> TP cancellation initiated or already cancelling</li>
+        <li><b>Red ring:</b> Cancellation failed (check Node-RED logs)</li>
+    </ul>
+    
+    <h3>Usage Examples</h3>
+    
+    <h4>Basic Cancellation</h4>
+    <p>Cancel a specific task instance:</p>
+    <pre><code>msg.tpc_id = "550e8400-e29b-41d4-a716-446655440000"
+msg.payload = {
+    "reason": "User requested cancellation"
+}</code></pre>
+    
+    <h4>Authenticated Cancellation</h4>
+    <p>Cancel with dynamic authentication:</p>
+    <pre><code>msg.tpc_id = "550e8400-e29b-41d4-a716-446655440000"
+msg.accessToken = "eyJhbGciOiJIUzI1NiIs..."
+msg.payload = {
+    "reason": "Emergency cancellation"
+}</code></pre>
+    
+    <h3>Error Handling</h3>
+    <p>Errors are logged to Node-RED and shown in the node status. Common errors include:</p>
+    <ul>
+        <li>Missing tpc_id in input message</li>
+        <li>Task instance not found</li>
+        <li>Task already completed/cancelled</li>
+        <li>tp_id mismatch (when configured)</li>
+        <li>API endpoint unreachable</li>
+        <li>Authentication failures</li>
+    </ul>
+    
+    <h3>Cancellation States</h3>
+    <p>The API handles different cancellation scenarios:</p>
+    <ul>
+        <li><b>First cancellation:</b> Status changes to "cancelling", flows are notified</li>
+        <li><b>Already cancelling:</b> Returns success with message "already being cancelled"</li>
+        <li><b>Not cancellable:</b> Returns error if task is completed, failed, or already cancelled</li>
+    </ul>
+</script>

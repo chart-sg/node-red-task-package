@@ -25,7 +25,9 @@
       "tp-update-user-status": "nodes/tp-update-user-status.js",
       "tp-delay": "nodes/tp-delay.js",
       "tp-data-set": "nodes/tp-data-set.js",
-      "tp-data-get": "nodes/tp-data-get.js"
+      "tp-data-get": "nodes/tp-data-get.js",
+      "create-tp": "nodes/create-tp.js",
+      "cancel-tp": "nodes/cancel-tp.js"
     }
   },
   "dependencies": {

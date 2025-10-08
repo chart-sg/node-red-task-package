@@ -1,0 +1,178 @@
+<!-- Create TP Node HTML -->
+<script type="text/javascript">
+    // Isolate this code
+    (function () {
+        'use strict'
+
+        const nodeLabel = 'create-tp'
+
+        RED.nodes.registerType(nodeLabel, {
+            category: 'Task Package',
+            color: '#FFCDD2',
+            defaults: {
+                name: { value: '' },
+                tp_id: { value: '', required: true },
+                auth_token: { value: '' }
+            },
+            inputs: 1,
+            outputs: 0,
+            inputLabels: ['Create TP request'],
+            icon: 'tp.svg',
+            paletteLabel: 'Create New',
+            label: function () { 
+                return this.name || 'Create New'
+            },
+            oneditprepare: function() {
+                // Populate tp_id dropdown with available task packages
+                const populateTaskPackages = () => {
+                    const dropdown = $('#node-input-tp_id')
+                    const currentValue = this.tp_id
+                    dropdown.empty()
+                    dropdown.append('<option value="">Select task package...</option>')
+                    
+                    // Scan existing tp-create nodes in workspace for task packages
+                    RED.nodes.eachNode((node) => {
+                        if (node.type === 'tp-create' && node.tp_id) {
+                            const selected = node.tp_id === currentValue ? 'selected' : ''
+                            const displayName = node.tp_name || node.tp_id
+                            dropdown.append(`<option value="${node.tp_id}" ${selected}>${node.tp_id} - ${displayName}</option>`)
+                        }
+                    })
+                    
+                    // If no existing value and no tp-create nodes found, allow manual entry
+                    if (currentValue && dropdown.find('option[value="' + currentValue + '"]').length === 0) {
+                        dropdown.append(`<option value="${currentValue}" selected>${currentValue}</option>`)
+                    }
+                }
+                
+                // Populate on dialog open
+                populateTaskPackages.call(this)
+                
+                // Refresh button functionality
+                $('#refresh-tp-list').on('click', () => {
+                    populateTaskPackages.call(this)
+                })
+                
+                // Allow manual entry if needed
+                $('#node-input-tp_id').on('change', function() {
+                    // This allows for manual entry while still providing dropdown convenience
+                })
+            }
+        })
+
+    })()
+</script>
+
+<script type="text/html" data-template-name="create-tp">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Create New">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-tp_id"><i class="fa fa-tasks"></i> Task Package ID</label>
+        <select id="node-input-tp_id" style="width: 70%;">
+            <option value="">Select task package...</option>
+        </select>
+        <button type="button" id="refresh-tp-list" class="red-ui-button" style="margin-left: 10px;">
+            <i class="fa fa-refresh"></i> Refresh
+        </button>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-auth_token"><i class="fa fa-key"></i> Auth Token</label>
+        <input type="password" id="node-input-auth_token" placeholder="Bearer token">
+        <div class="form-tips">
+            <b>Optional:</b> Authentication token. Can be overridden by <code>msg.accessToken</code>.
+        </div>
+    </div>
+    
+    <div class="form-tips">
+        <p><b>Input Message:</b></p>
+        <ul>
+            <li><code>msg.tp_id</code> - Override the configured task package ID</li>
+            <li><code>msg.payload</code> - Data to include with the TP creation request</li>
+            <li><code>msg.accessToken</code> - Override the authentication token</li>
+        </ul>
+        <p><b>Note:</b> This node creates TPs via API call and has no output.</p>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="create-tp">
+    <p>Creates task packages via API call. This is a control node for programmatically creating TPs from within Node-RED flows.</p>
+    
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>tp_id <span class="property-type">string</span></dt>
+        <dd><b>Optional:</b> Override the configured task package ID for this creation request.</dd>
+        
+        <dt>payload <span class="property-type">any</span></dt>
+        <dd>Data to include with the TP creation request. This will be passed to the task package flow.</dd>
+        
+        <dt>accessToken <span class="property-type">string</span></dt>
+        <dd><b>Optional:</b> Override the configured authentication token for this request.</dd>
+    </dl>
+    
+    <h3>Outputs</h3>
+    <p>None. This is a control action node that creates task packages via API but doesn't pass data to subsequent nodes.</p>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>Name <span class="property-type">string</span></dt>
+        <dd>Optional name for this node instance.</dd>
+        
+        <dt>Task Package ID <span class="property-type">string</span></dt>
+        <dd>
+            <b>Required:</b> The tp_id of the task package type to create. Can be overridden by <code>msg.tp_id</code>.
+            Select from available task packages or enter manually.
+        </dd>
+        
+        <dt>Auth Token <span class="property-type">string</span></dt>
+        <dd>
+            <b>Optional:</b> Bearer authentication token for API calls.
+            Can be overridden by <code>msg.accessToken</code>. Leave empty if authentication is not required.
+        </dd>
+    </dl>
+    
+    <h3>API Integration</h3>
+    <p>This node makes HTTP POST calls to <code>/task-package/start</code> with the following structure:</p>
+    <pre><code>{
+  "tp_id": "tp01",
+  ...payload fields
+}</code></pre>
+    
+    <h3>Status Indicators</h3>
+    <ul>
+        <li><b>Blue ring:</b> Ready to create TPs</li>
+        <li><b>Yellow dot:</b> API call in progress</li>
+        <li><b>Green dot:</b> TP created successfully (shows tpc_id)</li>
+        <li><b>Red ring:</b> Creation failed (check Node-RED logs)</li>
+    </ul>
+    
+    <h3>Usage Examples</h3>
+    
+    <h4>Basic Creation</h4>
+    <p>Configure the node with a tp_id and send any message to trigger creation:</p>
+    <pre><code>msg.payload = {
+    "room": "101",
+    "priority": "high"
+}</code></pre>
+    
+    <h4>Dynamic TP Type with Token</h4>
+    <p>Override the TP type and authentication at runtime:</p>
+    <pre><code>msg.tp_id = "emergency_transport"
+msg.accessToken = "eyJhbGciOiJIUzI1NiIs..."
+msg.payload = {
+    "patient_id": "12345",
+    "destination": "OR2"
+}</code></pre>
+    
+    <h3>Error Handling</h3>
+    <p>Errors are logged to Node-RED and shown in the node status. Common errors include:</p>
+    <ul>
+        <li>Missing tp_id</li>
+        <li>API endpoint unreachable</li>
+        <li>Authentication failures</li>
+        <li>Invalid payload data</li>
+    </ul>
+</script>
