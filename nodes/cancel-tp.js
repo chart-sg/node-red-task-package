@@ -144,6 +144,21 @@ function nodeInstance(config) {
                 this.log(`Successfully cancelled TP: ${cancelData.tpc_id} (${result.status})`)
             }
             
+            // Send API response to output
+            const outputMsg = {
+                ...msg,
+                payload: result,
+                topic: 'tp-cancel-success',
+                tp_data: {
+                    tpc_id: cancelData.tpc_id,
+                    tp_id: cancelData.tp_id,
+                    status: result.status,
+                    cancelled_at: new Date().toISOString(),
+                    message: result.message
+                }
+            }
+            this.send(outputMsg)
+            
             // Reset status after 3 seconds
             setTimeout(() => {
                 const statusText = this.tp_id ? `Ready: ${this.tp_id}` : 'Ready'
@@ -153,6 +168,15 @@ function nodeInstance(config) {
         } catch (error) {
             this.error(`Failed to cancel TP: ${error.message}`, msg)
             this.status({fill: 'red', shape: 'ring', text: 'Cancel failed'})
+            
+            // Send error response to output
+            const errorMsg = {
+                ...msg,
+                payload: { error: error.message },
+                topic: 'tp-cancel-error',
+                error: true
+            }
+            this.send(errorMsg)
             
             // Reset status after 5 seconds
             setTimeout(() => {

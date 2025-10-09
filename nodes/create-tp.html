@@ -15,9 +15,11 @@
                 auth_token: { value: '' }
             },
             inputs: 1,
-            outputs: 0,
+            outputs: 1,
             inputLabels: ['Create TP request'],
+            outputLabels: ['API response'],
             icon: 'tp.svg',
+            align: 'right',
             paletteLabel: 'Create New',
             label: function () { 
                 return this.name || 'Create New'
@@ -94,7 +96,7 @@
             <li><code>msg.payload</code> - Data to include with the TP creation request</li>
             <li><code>msg.accessToken</code> - Override the authentication token</li>
         </ul>
-        <p><b>Note:</b> This node creates TPs via API call and has no output.</p>
+        <p><b>Note:</b> This node creates TPs via API call and outputs the API response.</p>
     </div>
 </script>
 
@@ -114,7 +116,19 @@
     </dl>
     
     <h3>Outputs</h3>
-    <p>None. This is a control action node that creates task packages via API but doesn't pass data to subsequent nodes.</p>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd>API response from the task package creation request. Contains <code>tpc_id</code> and <code>status</code> on success, or <code>error</code> on failure.</dd>
+        
+        <dt>topic <span class="property-type">string</span></dt>
+        <dd>Set to "tp-create-success" on successful creation or "tp-create-error" on failure.</dd>
+        
+        <dt>tp_data <span class="property-type">object</span></dt>
+        <dd>Additional task package data including tpc_id, tp_id, status, and created_at timestamp (success only).</dd>
+        
+        <dt>error <span class="property-type">boolean</span></dt>
+        <dd>Set to true when an error occurs (error messages only).</dd>
+    </dl>
     
     <h3>Configuration</h3>
     <dl class="message-properties">

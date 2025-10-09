@@ -143,6 +143,20 @@ function nodeInstance(config) {
                 this.log(`Successfully created TP: ${result.tpc_id}`)
             }
             
+            // Send API response to output
+            const outputMsg = {
+                ...msg,
+                payload: result,
+                topic: 'tp-create-success',
+                tp_data: {
+                    tpc_id: result.tpc_id,
+                    tp_id: tpData.tp_id,
+                    status: result.status,
+                    created_at: new Date().toISOString()
+                }
+            }
+            this.send(outputMsg)
+            
             // Reset status after 3 seconds
             setTimeout(() => {
                 this.status({fill: 'blue', shape: 'ring', text: `Ready: ${this.tp_id}`})
@@ -151,6 +165,15 @@ function nodeInstance(config) {
         } catch (error) {
             this.error(`Failed to create TP: ${error.message}`, msg)
             this.status({fill: 'red', shape: 'ring', text: 'Create failed'})
+            
+            // Send error response to output
+            const errorMsg = {
+                ...msg,
+                payload: { error: error.message },
+                topic: 'tp-create-error',
+                error: true
+            }
+            this.send(errorMsg)
             
             // Reset status after 5 seconds
             setTimeout(() => {
