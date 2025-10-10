@@ -1,4 +1,4 @@
-/** Create TP Node - API Control
+/** TP Create API Node - API Control
  *  Creates task packages via API call - input only, no output
  *  Following TotallyInformation patterns
  * 
@@ -19,7 +19,7 @@ const mod = {
     /** @type {RED} Reference to the master RED instance */
     RED: undefined,
     /** @type {string} Custom Node Name - must match HTML file and package.json */
-    nodeName: 'create-tp',
+    nodeName: 'tp-create-api',
     /** @type {boolean} Turn on/off debugging */
     debug: false,
 }
@@ -90,7 +90,7 @@ function nodeInstance(config) {
     RED.nodes.createNode(this, config) 
 
     // Transfer config items from the Editor panel to the runtime
-    this.name = config.name || 'Create New'
+    this.name = config.name || 'API - Create'
     this.tp_id = config.tp_id
     this.auth_token = config.auth_token
     
@@ -108,7 +108,7 @@ function nodeInstance(config) {
     this.status({fill: 'blue', shape: 'ring', text: `Ready: ${this.tp_id}`})
     
     if (mod.debug) {
-        this.log(`create-tp node initialized for: ${this.tp_id}`)
+        this.log(`tp-create-api node initialized for: ${this.tp_id}`)
     }
 
     // Handle incoming messages
@@ -187,7 +187,7 @@ function nodeInstance(config) {
     /** Clean up on node removal/shutdown */
     this.on('close', (removed, done) => {
         if (mod.debug) {
-            this.log(`create-tp node closing: ${this.tp_id}`)
+            this.log(`tp-create-api node closing: ${this.tp_id}`)
         }
         done()
     })
@@ -199,7 +199,7 @@ function nodeInstance(config) {
  * Complete module definition for our Node. This is where things actually start.
  * @param {RED} RED The Node-RED runtime object
  */
-function CreateTp(RED) {
+function CallTp(RED) {
     // Save a reference to the RED runtime for convenience
     mod.RED = RED
     
@@ -213,5 +213,5 @@ function CreateTp(RED) {
 
 // Export the module definition, this is consumed by Node-RED on startup.
 module.exports = function(RED) {
-    CreateTp(RED)
+    CallTp(RED)
 }

@@ -1,0 +1,177 @@
+<!-- EDT Filter Node HTML -->
+<script type="text/javascript">
+    // Isolate this code
+    (function () {
+        'use strict'
+
+        const nodeLabel = 'edt-filter'
+
+        RED.nodes.registerType(nodeLabel, {
+            category: 'Event Driven Trigger',
+            color: '#FFCC80',
+            defaults: {
+                name: { value: '' },
+                filter_name: { value: 'default', required: true },
+                entity_id_field: { value: 'entity_id' },
+                min_interval: { value: 0, validate: RED.validators.number() },
+                filter_duplicates: { value: false },
+                filter_fields: { value: '' }
+            },
+            inputs: 1,
+            outputs: 1,
+            outputLabels: ['Filtered messages'],
+            icon: 'edt.svg',
+            paletteLabel: 'filter',
+            label: function () { 
+                return this.name || `Filter: ${this.filter_name || 'default'}`
+            }
+        })
+
+    })()
+</script>
+
+<script type="text/html" data-template-name="edt-filter">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="EDT Filter">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-filter_name"><i class="fa fa-filter"></i> Filter Name</label>
+        <input type="text" id="node-input-filter_name" placeholder="default" value="default">
+        <div class="form-tips">
+            <b>Required:</b> Unique identifier for this filter instance (e.g., bed_sensors, door_events).
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-entity_id_field"><i class="fa fa-key"></i> Entity ID Field</label>
+        <input type="text" id="node-input-entity_id_field" placeholder="entity_id" value="entity_id">
+        <div class="form-tips">
+            Message field containing the entity identifier. Supports dot notation (e.g., payload.room_id, sensor.id).
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-min_interval"><i class="fa fa-clock-o"></i> Min Interval (seconds)</label>
+        <input type="number" id="node-input-min_interval" placeholder="0" min="0" step="1">
+        <div class="form-tips">
+            Minimum time between messages for the same entity. Set to 0 to disable time-based filtering.
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-filter_duplicates"><i class="fa fa-copy"></i> Filter Duplicates</label>
+        <input type="checkbox" id="node-input-filter_duplicates" style="display: inline-block; width: auto; vertical-align: baseline;">
+        <label for="node-input-filter_duplicates" style="width: auto; margin-left: 5px;">Block messages with same values</label>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-filter_fields"><i class="fa fa-list"></i> Fields to Compare</label>
+        <input type="text" id="node-input-filter_fields" placeholder="payload.status,payload.occupancy">
+        <div class="form-tips">
+            <b>Required for duplicate filtering:</b> Comma-separated list of fields to compare for changes.
+            Only used when "Filter Duplicates" is enabled. Supports dot notation.
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="edt-filter">
+    <p>Prevents spam events and duplicate messages based on time intervals and value changes.</p>
+    
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>entity_id <span class="property-type">string</span></dt>
+        <dd>Identifier for the entity (or use custom field via Entity ID Field setting).</dd>
+        
+        <dt>payload <span class="property-type">any</span></dt>
+        <dd>Message data to be filtered.</dd>
+    </dl>
+    
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>Original message <span class="property-type">object</span></dt>
+        <dd>The input message if it passes the filter, with added _filter metadata.</dd>
+        
+        <dt>_filter <span class="property-type">object</span></dt>
+        <dd>Added metadata including entity_id, filter_name, passed_at timestamp, and time_since_last.</dd>
+    </dl>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>Filter Name <span class="property-type">string</span></dt>
+        <dd>
+            <b>Required:</b> Unique identifier for this filter instance. Multiple nodes can share 
+            the same filter name to coordinate filtering.
+            Example: "bed_sensors", "door_events", "temperature_readings"
+        </dd>
+        
+        <dt>Entity ID Field <span class="property-type">string</span></dt>
+        <dd>
+            Message field containing the entity identifier. Supports dot notation for nested fields.
+            Default: "entity_id"
+            Examples: "payload.room_id", "sensor.device_id", "topic"
+        </dd>
+        
+        <dt>Min Interval (seconds) <span class="property-type">number</span></dt>
+        <dd>
+            Minimum time between messages for the same entity. Messages arriving sooner are dropped.
+            Set to 0 to disable time-based filtering.
+            Example: 30 (blocks messages for 30 seconds per entity)
+        </dd>
+        
+        <dt>Filter Duplicates <span class="property-type">boolean</span></dt>
+        <dd>
+            When enabled, blocks messages where specified fields have the same values as the last message.
+            Requires "Fields to Compare" to be configured.
+        </dd>
+        
+        <dt>Fields to Compare <span class="property-type">string</span></dt>
+        <dd>
+            Comma-separated list of message fields to compare for duplicate detection.
+            Only used when "Filter Duplicates" is enabled. Supports dot notation.
+            Examples: "payload.status,payload.occupancy", "temperature,humidity"
+        </dd>
+    </dl>
+    
+    <h3>Filtering Logic</h3>
+    <p>Messages are dropped if they fail ANY of the enabled filters:</p>
+    <ul>
+        <li><strong>Time Filter:</strong> Message arrives within min_interval seconds of last message for same entity</li>
+        <li><strong>Duplicate Filter:</strong> All specified fields have identical values to last message</li>
+    </ul>
+    
+    <h3>Usage</h3>
+    <p>
+        Place this node after sensor inputs to prevent spam and reduce unnecessary processing.
+        Connect filtered messages to edt-state or your business logic.
+    </p>
+    
+    <h3>Examples</h3>
+    
+    <h4>Bed Sensor Spam Prevention</h4>
+    <p>Prevent rapid-fire occupancy sensor messages:</p>
+    <ul>
+        <li>Filter Name: "bed_occupancy"</li>
+        <li>Entity ID Field: "payload.bed_id"</li>
+        <li>Min Interval: 10 seconds</li>
+        <li>Filter Duplicates: ✓</li>
+        <li>Fields to Compare: "payload.occupied"</li>
+    </ul>
+    
+    <h4>Temperature Reading Throttling</h4>
+    <p>Limit temperature updates to significant changes:</p>
+    <ul>
+        <li>Filter Name: "room_temp"</li>
+        <li>Entity ID Field: "payload.room_id"</li>
+        <li>Min Interval: 60 seconds</li>
+        <li>Filter Duplicates: ✓</li>
+        <li>Fields to Compare: "payload.temperature"</li>
+    </ul>
+    
+    <h3>Performance</h3>
+    <p>
+        Filter state is stored in node memory (not persistent). Each entity's last message 
+        data is tracked separately. Memory usage scales with the number of unique entities processed.
+    </p>
+</script>

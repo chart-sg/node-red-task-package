@@ -1,0 +1,151 @@
+<!-- EDT State Node HTML -->
+<script type="text/javascript">
+    // Isolate this code
+    (function () {
+        'use strict'
+
+        const nodeLabel = 'edt-state'
+
+        RED.nodes.registerType(nodeLabel, {
+            category: 'Event Driven Trigger',
+            color: '#FFCC80',
+            defaults: {
+                name: { value: '' },
+                state_name: { value: 'default', required: true },
+                entity_id_field: { value: 'entity_id' },
+                state_fields: { value: '' }
+            },
+            inputs: 1,
+            outputs: 1,
+            outputLabels: ['State updated'],
+            icon: 'edt.svg',
+            paletteLabel: 'state',
+            label: function () { 
+                return this.name || `State: ${this.state_name || 'default'}`
+            }
+        })
+
+    })()
+</script>
+
+<script type="text/html" data-template-name="edt-state">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="EDT State">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-state_name"><i class="fa fa-database"></i> State Name</label>
+        <input type="text" id="node-input-state_name" placeholder="default" value="default">
+        <div class="form-tips">
+            <b>Required:</b> Unique identifier for this state collection (e.g., bed_sensors, robot_status).
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-entity_id_field"><i class="fa fa-key"></i> Entity ID Field</label>
+        <input type="text" id="node-input-entity_id_field" placeholder="entity_id" value="entity_id">
+        <div class="form-tips">
+            Message field containing the entity identifier. Supports dot notation (e.g., payload.room_id, sensor.id).
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-state_fields"><i class="fa fa-list"></i> State Fields</label>
+        <input type="text" id="node-input-state_fields" placeholder="payload.occupancy,payload.temperature">
+        <div class="form-tips">
+            <b>Optional:</b> Comma-separated list of message fields to store as state. 
+            Leave empty to store entire payload. Supports dot notation.
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="edt-state">
+    <p>Manages entity state in global context with automatic persistence and change tracking.</p>
+    
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>entity_id <span class="property-type">string</span></dt>
+        <dd>Identifier for the entity (or use custom field via Entity ID Field setting).</dd>
+        
+        <dt>payload <span class="property-type">any</span></dt>
+        <dd>State data to store for the entity.</dd>
+    </dl>
+    
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>entity_id <span class="property-type">string</span></dt>
+        <dd>The entity identifier that was processed.</dd>
+        
+        <dt>entity_state <span class="property-type">object</span></dt>
+        <dd>Current complete state for this entity, including timestamps and counters.</dd>
+        
+        <dt>previous_state <span class="property-type">object</span></dt>
+        <dd>Previous state before this update (empty object for first update).</dd>
+        
+        <dt>state_changed <span class="property-type">boolean</span></dt>
+        <dd>True if the state actually changed from previous update.</dd>
+        
+        <dt>state_name <span class="property-type">string</span></dt>
+        <dd>The state collection name for this update.</dd>
+    </dl>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>State Name <span class="property-type">string</span></dt>
+        <dd>
+            <b>Required:</b> Unique identifier for this state collection. Multiple nodes can share 
+            the same state name to work with the same entity set.
+            Example: "bed_sensors", "robot_status", "task_progress"
+        </dd>
+        
+        <dt>Entity ID Field <span class="property-type">string</span></dt>
+        <dd>
+            Message field containing the entity identifier. Supports dot notation for nested fields.
+            Default: "entity_id"
+            Examples: "payload.room_id", "sensor.device_id", "topic"
+        </dd>
+        
+        <dt>State Fields <span class="property-type">string</span></dt>
+        <dd>
+            <b>Optional:</b> Comma-separated list of message fields to extract and store as state.
+            Supports dot notation. If empty, stores entire payload as state.
+            Examples: "payload.occupancy,payload.temperature", "status,battery_level"
+        </dd>
+    </dl>
+    
+    <h3>State Storage</h3>
+    <p>
+        Entity states are stored in Node-RED global context under the key <code>edt_state_{state_name}</code>.
+        Each entity state includes:
+    </p>
+    <ul>
+        <li><code>last_updated</code> - ISO timestamp of last update</li>
+        <li><code>update_count</code> - Number of updates received for this entity</li>
+        <li>Your custom state fields</li>
+    </ul>
+    
+    <h3>Usage</h3>
+    <p>
+        Place this node after sensor data input to track entity states over time. The node automatically
+        handles state persistence and provides change detection for downstream processing.
+    </p>
+    
+    <h3>Examples</h3>
+    
+    <h4>Hospital Bed Monitoring</h4>
+    <p>Track bed occupancy and patient status:</p>
+    <ul>
+        <li>State Name: "bed_status"</li>
+        <li>Entity ID Field: "payload.bed_id"</li>
+        <li>State Fields: "payload.occupied,payload.patient_id"</li>
+    </ul>
+    
+    <h4>Robot Status Tracking</h4>
+    <p>Monitor robot locations and battery levels:</p>
+    <ul>
+        <li>State Name: "robot_fleet"</li>
+        <li>Entity ID Field: "payload.robot_id"</li>
+        <li>State Fields: "payload.location,payload.battery,payload.status"</li>
+    </ul>
+</script>

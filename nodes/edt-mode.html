@@ -1,0 +1,159 @@
+<!-- EDT Mode Node HTML -->
+<script type="text/javascript">
+    // Isolate this code
+    (function () {
+        'use strict'
+
+        const nodeLabel = 'edt-mode'
+
+        RED.nodes.registerType(nodeLabel, {
+            category: 'Event Driven Trigger',
+            color: '#FFCC80',
+            defaults: {
+                name: { value: '' },
+                mode_name: { value: 'default', required: true },
+                initial_state: { value: true }
+            },
+            inputs: 1,
+            outputs: 2,
+            outputLabels: ['Enabled messages', 'Status updates'],
+            icon: 'edt.svg',
+            paletteLabel: 'mode',
+            label: function () { 
+                return this.name || `Mode: ${this.mode_name || 'default'}`
+            }
+        })
+
+    })()
+</script>
+
+<script type="text/html" data-template-name="edt-mode">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="EDT Mode">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-mode_name"><i class="fa fa-power-off"></i> Mode Name</label>
+        <input type="text" id="node-input-mode_name" placeholder="default" value="default">
+        <div class="form-tips">
+            <b>Required:</b> Unique identifier for this mode control (e.g., night_mode, emergency_mode).
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-initial_state"><i class="fa fa-play"></i> Initial State</label>
+        <input type="checkbox" id="node-input-initial_state" style="display: inline-block; width: auto; vertical-align: baseline;" checked>
+        <label for="node-input-initial_state" style="width: auto; margin-left: 5px;">Start enabled</label>
+        <div class="form-tips">
+            Default state when Node-RED starts. Only applies on first deployment.
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="edt-mode">
+    <p>Provides dynamic on/off control for EDT flows with API integration and persistent state.</p>
+    
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>Regular Messages <span class="property-type">any</span></dt>
+        <dd>Any message to be conditionally passed through based on mode state.</dd>
+        
+        <dt>Control Messages <span class="property-type">object</span></dt>
+        <dd>Messages with topic "edt-mode/control/{mode_name}/{action}" for dynamic control.</dd>
+    </dl>
+    
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>Output 1: Enabled Messages <span class="property-type">any</span></dt>
+        <dd>Original messages that pass through when mode is enabled, with added _edt_mode metadata.</dd>
+        
+        <dt>Output 2: Status Updates <span class="property-type">object</span></dt>
+        <dd>Status messages when mode state changes, with topic "edt-mode/status/{mode_name}".</dd>
+    </dl>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>Mode Name <span class="property-type">string</span></dt>
+        <dd>
+            <b>Required:</b> Unique identifier for this mode control. Multiple nodes can share 
+            the same mode name to coordinate on/off state.
+            Example: "night_mode", "emergency_mode", "maintenance_mode"
+        </dd>
+        
+        <dt>Initial State <span class="property-type">boolean</span></dt>
+        <dd>
+            Default state when Node-RED starts or when first deployed. State persists across 
+            deploys and restarts once set.
+            Default: Enabled (checked)
+        </dd>
+    </dl>
+    
+    <h3>Control Messages</h3>
+    <p>Send control messages to dynamically change mode state:</p>
+    <ul>
+        <li><code>edt-mode/control/{mode_name}/enable</code> - Enable the mode</li>
+        <li><code>edt-mode/control/{mode_name}/disable</code> - Disable the mode</li>
+        <li><code>edt-mode/control/{mode_name}/toggle</code> - Toggle current state</li>
+        <li><code>edt-mode/control/{mode_name}/status</code> - Request current status</li>
+    </ul>
+    
+    <h3>API Integration</h3>
+    <p>
+        The mode state can be controlled via REST API (future feature) or MQTT commands.
+        State is stored in Node-RED global context for persistence.
+    </p>
+    
+    <h3>Usage</h3>
+    <p>
+        Place this node at the beginning of EDT flows to provide dynamic on/off control.
+        Connect control messages from dashboards, schedules, or external systems.
+    </p>
+    
+    <h3>Examples</h3>
+    
+    <h4>Night Mode Control</h4>
+    <p>Disable non-essential EDT triggers during night hours:</p>
+    <ul>
+        <li>Mode Name: "night_mode"</li>
+        <li>Initial State: Enabled</li>
+        <li>Control via: Scheduler sending enable/disable at sunset/sunrise</li>
+    </ul>
+    
+    <h4>Emergency Mode</h4>
+    <p>Override normal EDT behavior during emergencies:</p>
+    <ul>
+        <li>Mode Name: "emergency_override"</li>
+        <li>Initial State: Disabled</li>
+        <li>Control via: Dashboard button or external alarm system</li>
+    </ul>
+    
+    <h4>Maintenance Mode</h4>
+    <p>Disable EDT processing during system maintenance:</p>
+    <ul>
+        <li>Mode Name: "maintenance"</li>
+        <li>Initial State: Enabled</li>
+        <li>Control via: Admin interface or scheduled maintenance windows</li>
+    </ul>
+    
+    <h3>Flow Patterns</h3>
+    
+    <h4>Basic Gate Pattern</h4>
+    <pre>
+[Sensor] → [edt-mode] → [edt-filter] → [Business Logic]
+              ↓
+         [Status Updates]
+    </pre>
+    
+    <h4>Scheduled Control Pattern</h4>
+    <pre>
+[Inject: Daily] → [Function: Set Night Mode] → [edt-mode]
+[Sensor Data] → [edt-mode] → [Only when enabled]
+    </pre>
+    
+    <h3>State Persistence</h3>
+    <p>
+        Mode state is stored in Node-RED global context under key <code>edt_mode_{mode_name}</code>.
+        State persists across Node-RED restarts and flow deployments.
+    </p>
+</script>

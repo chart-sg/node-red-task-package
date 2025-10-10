@@ -19,15 +19,18 @@
       "tp-config": "nodes/tp-config.js",
       "tp-create": "nodes/tp-create.js",
       "tp-start": "nodes/tp-start.js",
-      "tp-ongoing": "nodes/tp-ongoing.js",
       "tp-cancel": "nodes/tp-cancel.js",
       "tp-end": "nodes/tp-end.js",
       "tp-update-user-status": "nodes/tp-update-user-status.js",
       "tp-delay": "nodes/tp-delay.js",
+      "tp-check-cancel": "nodes/tp-check-cancel.js",
       "tp-data-set": "nodes/tp-data-set.js",
       "tp-data-get": "nodes/tp-data-get.js",
-      "create-tp": "nodes/create-tp.js",
-      "cancel-tp": "nodes/cancel-tp.js"
+      "tp-create-api": "nodes/tp-create-api.js",
+      "tp-cancel-api": "nodes/tp-cancel-api.js",
+      "edt-state": "nodes/edt-state.js",
+      "edt-filter": "nodes/edt-filter.js",
+      "edt-mode": "nodes/edt-mode.js"
     }
   },
   "dependencies": {

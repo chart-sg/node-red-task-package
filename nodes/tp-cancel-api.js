@@ -19,7 +19,7 @@ const mod = {
     /** @type {RED} Reference to the master RED instance */
     RED: undefined,
     /** @type {string} Custom Node Name - must match HTML file and package.json */
-    nodeName: 'cancel-tp',
+    nodeName: 'tp-cancel-api',
     /** @type {boolean} Turn on/off debugging */
     debug: false,
 }
@@ -91,7 +91,7 @@ function nodeInstance(config) {
     RED.nodes.createNode(this, config) 
 
     // Transfer config items from the Editor panel to the runtime
-    this.name = config.name || 'Cancel Existing'
+    this.name = config.name || 'API - Cancel'
     this.tp_id = config.tp_id
     this.auth_token = config.auth_token
     
@@ -103,7 +103,7 @@ function nodeInstance(config) {
     this.status({fill: 'blue', shape: 'ring', text: statusText})
     
     if (mod.debug) {
-        this.log(`cancel-tp node initialized${this.tp_id ? ' for: ' + this.tp_id : ''}`)
+        this.log(`tp-cancel-api node initialized${this.tp_id ? ' for: ' + this.tp_id : ''}`)
     }
 
     // Handle incoming messages
@@ -191,7 +191,7 @@ function nodeInstance(config) {
     /** Clean up on node removal/shutdown */
     this.on('close', (removed, done) => {
         if (mod.debug) {
-            this.log(`cancel-tp node closing${this.tp_id ? ': ' + this.tp_id : ''}`)
+            this.log(`tp-cancel-api node closing${this.tp_id ? ': ' + this.tp_id : ''}`)
         }
         done()
     })

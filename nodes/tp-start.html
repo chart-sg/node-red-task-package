@@ -10,8 +10,7 @@
             category: 'Task Package',
             color: '#E57373',
             defaults: {
-                name: { value: '' },
-                auto_transition: { value: false }
+                name: { value: '' }
             },
             inputs: 1,
             outputs: 1,
@@ -30,12 +29,6 @@
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Task Package Start">
-    </div>
-    
-    <div class="form-row">
-        <label for="node-input-auto_transition"><i class="fa fa-forward"></i> Auto Transition</label>
-        <input type="checkbox" id="node-input-auto_transition" style="display: inline-block; width: auto; vertical-align: baseline;">
-        <label for="node-input-auto_transition" style="width: auto; margin-left: 5px;">Automatically transition to 'ongoing' status</label>
     </div>
     
 
@@ -63,13 +56,7 @@
     </dl>
     
     <h3>Configuration</h3>
-    <dl class="message-properties">
-        <dt>Auto Transition <span class="property-type">boolean</span></dt>
-        <dd>
-            If enabled, automatically transitions task status from 'started' to 'ongoing' after updating. 
-            Useful for workflows where tasks immediately begin active execution.
-        </dd>
-    </dl>
+    <p>This node has no configuration options. It simply transitions the task package status from 'created' to 'started'.</p>
     
     <h3>Flow Context</h3>
     <p>This node stores the following values in flow context for other task package nodes:</p>

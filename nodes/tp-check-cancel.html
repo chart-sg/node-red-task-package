@@ -1,0 +1,79 @@
+<!-- Task Package Check Cancel Node HTML -->
+<script type="text/javascript">
+(function () {
+    'use strict'
+    
+    RED.nodes.registerType('tp-check-cancel', {
+        category: 'Task Package',
+        color: '#EF9A9A',
+        defaults: {
+            name: { value: '' }
+        },
+        inputs: 1,
+        outputs: 2,
+        inputLabels: ['Task data'],
+        outputLabels: ['Pass', 'Cancelled'],
+        icon: 'tp.svg',
+        paletteLabel: 'check cancel',
+        label: function () { 
+            return this.name || 'Check Cancel'
+        }
+    })
+})()
+</script>
+
+<script type="text/html" data-template-name="tp-check-cancel">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Check Cancel">
+    </div>
+</script>
+
+<script type="text/html" data-help-name="tp-check-cancel">
+    <p>Checks if the current task package has been cancelled and routes the flow accordingly.</p>
+    
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>tp_data <span class="property-type">object</span></dt>
+        <dd>Task package data object containing tpc_id and other task information.</dd>
+    </dl>
+    
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>Output 1 (Pass) <span class="property-type">object</span></dt>
+        <dd>Message passes through unchanged if task package is still active (not cancelled).</dd>
+        
+        <dt>Output 2 (Cancelled) <span class="property-type">object</span></dt>
+        <dd>Message is routed here if task package has been cancelled. Includes cancellation details.</dd>
+    </dl>
+    
+    <h3>Configuration</h3>
+    <p>This node has no configuration options. It simply checks the cancellation state and routes messages accordingly.</p>
+    
+    <h3>Flow Context</h3>
+    <p>This node reads the following values from flow context:</p>
+    <ul>
+        <li><code>current_tpc_id</code> - The task instance ID to check for cancellation</li>
+        <li><code>task_cancelled</code> - Cancellation flag set by cancel events</li>
+    </ul>
+    
+    <h3>Usage</h3>
+    <p>
+        Place this node at strategic points in your task package flow where you want to check for cancellation.
+        This is particularly useful for non-task package nodes that can't inherently listen to cancel events.
+    </p>
+    <p>
+        Wire the first output (Pass) to continue normal flow execution.
+        Wire the second output (Cancelled) to your failure/cleanup sequence.
+    </p>
+    <p>
+        The node automatically listens for cancel events for the current tpc_id and sets an internal flag.
+        When a message flows through, it checks this flag and routes accordingly.
+    </p>
+    
+    <h3>Cancellation Detection</h3>
+    <p>
+        The node listens for task package cancel events and maintains an internal cancellation state.
+        This allows non-task package nodes in your flow to be aware of cancellation events and respond appropriately.
+    </p>
+</script>

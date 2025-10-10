@@ -2,7 +2,16 @@
 
 ## Overview
 
-The **node-red-task-package** module is a workflow orchestrator that provides a higher-layer abstraction for managing task execution flows. It enables external users to trigger Node-RED flows via REST API calls or internal events, with built-in security,**Enhanced Task Completion Handling**:
+The **node-red-task-package** module is a workflow orchestrator that provides a higher-layer abstraction for managing task execution flows. It enables external users to trigger Node-RED flows via REST API calls or internal events, with built-in security, lifecycle management capabilities, and a state machine-like architecture.
+
+**Node Categories**:
+The task package system organizes nodes into three distinct categories:
+
+1. **🔄 TP Workflow Nodes**: Control the workflow lifecycle (tp-create, tp-start, tp-ongoing, tp-end, tp-cancel)
+2. **🛠️ TP API Nodes**: Direct programmatic control via REST API (create-tp, cancel-tp)  
+3. **📊 TP Data Nodes**: Handle data operations and utilities (tp-update-user-status, tp-data-get, tp-data-set, tp-delay)
+
+**Enhanced Task Completion Handling**:
 ```javascript
 const tpNodeUtils = require('../lib/tp-node-utils')
 const tpc_id = msg.tp_data.tpc_id
@@ -50,8 +59,35 @@ if (task_index !== -1) {
 - **Flexible Payload Handling**: Dynamic payload extraction with tp_id/user as control parameters
 - **Auto-Discovery**: tp-cancel nodes automatically discover and monitor all active tasks
 - **Database Synchronization**: Automatic task_packages table updates on deployment
+- **OIDC Authorization**: User-based task package access control with tp_allowed filtering
+- **State Machine Architecture**: Workflow state machine pattern with predictable state transitions
 
 ## Architecture
+
+### State Machine Design Philosophy
+
+The task package framework implements a **workflow state machine** architecture where:
+
+**🔄 State Machine Characteristics**:
+- **Clear States**: Created → Started → Ongoing → Ended (or Cancelled)
+- **State Transitions**: Each TP Workflow node triggers specific state transitions
+- **State Data**: Task context and user data managed through state transitions
+- **Predictable Flow**: Well-defined progression through workflow states
+- **Parallel Execution**: Multiple state machine instances can run simultaneously
+
+**🎯 Implementation Pattern**:
+- **Each task package instance** = One state machine instance with unique `tpc_id`
+- **Node-RED flows** = Visual state transition logic and business rules
+- **Database** = Persistent state storage with status tracking
+- **Events** = State change notifications and coordination
+- **API endpoints** = External state triggers and status queries
+
+**🔄 State Transition Flow**:
+```
+API Call → Created → tp-start → Started → tp-ongoing → Ongoing → tp-end → Completed
+                                   ↓                      ↓
+API Cancel → Cancelling → tp-cancel → [cleanup] → tp-end → Cancelled
+```
 
 ### System Components
 
@@ -112,6 +148,30 @@ sequenceDiagram
 
 ### REST Endpoints
 
+#### Enhanced API Authorization with tp_allowed
+**Purpose**: User-based task package access control
+
+**Authorization Flow**:
+1. **Token Validation**: Bearer token validated against OIDC provider userinfo endpoint
+2. **User Identification**: Username extracted from `preferred_username`, `email`, `name`, or `sub` fields
+3. **Authorization Check**: User's `tp_allowed` array checked against requested `tp_id`
+4. **Filtering**: `/info` endpoint returns only authorized task packages for the user
+
+**tp_allowed Structure**:
+```json
+{
+    "preferred_username": "sbrow",
+    "tp_allowed": ["tp01", "tp02", "tp03", "tp05"],
+    "email": "sbrow@email.com"
+}
+```
+
+**Authorization Behavior**:
+- **Empty tp_allowed**: User has access to all task packages
+- **Populated tp_allowed**: User restricted to specified task packages only
+- **Missing tp_allowed**: User has access to all task packages
+- **API Filtering**: Automatically filters results based on user permissions
+
 #### Interactive API Documentation
 **GET `/task-package/docs`**
 - **Purpose**: Interactive Swagger UI documentation
@@ -129,18 +189,19 @@ sequenceDiagram
 ```json
 [
     {
-        "tp_id": "tp01",
+        "id": "tp01",
         "name": "Linen Delivery", 
         "form_url": "linen_delivery",
-        "schema": {
-            "type": "object",
-            "properties": {
-                "room": {"type": "string"}
-            }
-        }
+        "created_at": "2025-10-09T05:00:57Z",
+        "updated_at": "2025-10-09T05:00:57Z"
     }
 ]
 ```
+
+**Authorization Filtering**:
+- Automatically filters results based on user's `tp_allowed` array
+- Users without `tp_allowed` see all task packages
+- Users with `tp_allowed` see only authorized task packages
 
 #### GET `/task-package/status`
 **Purpose**: Retrieve task instance status with optional filtering
@@ -234,6 +295,37 @@ sequenceDiagram
 
 ## Service Layer (Node-RED Nodes)
 
+### Node Categories and Palette Organization
+
+The task package system organizes nodes into three functional categories for better user experience:
+
+#### **🔄 TP Workflow Nodes**
+**Purpose**: Control the workflow lifecycle of task packages
+**Color Theme**: Dark red
+**Nodes**:
+- `tp-create` - Initiates a new workflow
+- `tp-start` - Begins execution of a workflow  
+- `tp-ongoing` - Marks workflow as in progress
+- `tp-end` - Completes a workflow successfully
+- `tp-cancel` - Terminates a workflow
+
+#### **🛠️ TP API Nodes**
+**Purpose**: Direct programmatic control via REST API
+**Color Theme**: Light red (#FFCDD2)
+**Nodes**:
+- `tp-create-api` - Creates task packages via API calls (formerly call-tp)
+- `tp-cancel-api` - Cancels task packages via API calls (formerly cancel-tp)
+
+#### **📊 TP Data Nodes**
+**Purpose**: Handle data operations and utilities within task packages
+**Color Theme**: Green and Light red (#EF9A9A for tp-delay and tp-check-cancel)
+**Nodes**:
+- `tp-update-user-status` - Updates user status in tasks
+- `tp-data-get` - Retrieves data from task packages
+- `tp-data-set` - Sets/stores data in task packages  
+- `tp-delay` - Adds delays/timing control to workflows
+- `tp-check-cancel` - Checks for cancellation and routes flow accordingly
+
 ### Node Specifications
 
 #### Configuration Node: `tp-config`
@@ -255,7 +347,7 @@ sequenceDiagram
 
 #### Flow Control Nodes
 
-##### `tp-start` (Entry Point)
+##### `tp-create` (Entry Point)
 - **Inputs**: None
 - **Outputs**: 1 (main flow)
 - **Purpose**: Entry point for task package flows
@@ -265,15 +357,17 @@ sequenceDiagram
 - `tp_name`: Human-readable name (e.g., "Linen Delivery")  
 - `tp_form_url`: Form endpoint path as stored in database (e.g., "/dashboard/linen_delivery")
 - `tp_schema`: JSON schema for payload validation
+- `auto_transition`: Automatically transition from 'created' to 'started' status
 
 **Behavior**:
 1. Listens to `task-package/start/{tp_id}` events
 2. Filters by matching `tp_id`
 3. Validates payload against `tp_schema` (if configured)
-4. Updates database status to 'underway'
-5. Stores task context in both node instance and flow context
-6. Auto-updates task_packages table on deployment
-7. Outputs `msg.tp_data` with task context and `msg.payload` with dynamic data
+4. Updates database status to 'created'
+5. If `auto_transition` is enabled, automatically transitions to 'started'
+6. Stores task context in both node instance and flow context
+7. Auto-updates task_packages table on deployment
+8. Outputs `msg.tp_data` with task context and `msg.payload` with dynamic data
 
 **Parallel Task Support**:
 ```javascript
@@ -305,6 +399,21 @@ flow.set('task_cancelled', false)
 taskPackageDB.upsertTaskPackage(this.tp_id, this.tp_name, this.tp_form_url)
 ```
 
+##### `tp-start` (Workflow Transition)
+- **Inputs**: 1 (from flow)
+- **Outputs**: 1 (main flow)
+- **Purpose**: Transitions task package status from 'created' to 'started'
+
+**Configuration**:
+- `name`: Optional custom name (defaults based on function)
+
+**Behavior**:
+1. Receives `msg.tp_data` from upstream tp-create node
+2. Updates database status from 'created' to 'started'
+3. Sets started_at timestamp
+4. Passes message through unchanged
+5. No auto-transition options (single clear purpose)
+
 **Message Output**:
 ```javascript
 msg.tp_data = {
@@ -312,7 +421,7 @@ msg.tp_data = {
     tp_id: "tp01",
     tp_name: "linen_delivery",
     user: "sbrow",
-    status: "underway",
+    status: "created",  // or "started" if auto_transition enabled
     mode: "start",
     created_at: "2025-09-16T10:30:00Z",
     updated_at: "2025-09-16T10:30:00Z"
@@ -434,7 +543,47 @@ function handleCancelEvent(payload, tpc_id) {
 }
 ```
 
-##### `tp-update-user-status` (Status Update)
+##### `tp-create-api` (API Control Node - TP API Category)
+- **Inputs**: 1 (trigger message)
+- **Outputs**: 1 (API response)
+- **Purpose**: Programmatically create task packages via REST API calls
+- **Category**: TP API Nodes
+- **Color**: Light red theme (#FFCDD2)
+- **Display Label**: "API - Create"
+
+**Configuration**:
+- `name`: Optional custom name (defaults to "API - Create")
+- `tp_id`: Task package ID to create
+- `auth_token`: Optional bearer token for authentication
+- Fixed API endpoint URL
+
+**Behavior**:
+1. Receives trigger message with task package data
+2. Makes HTTP POST request to `/task-package/start` endpoint
+3. Includes Bearer token from configuration or message
+4. Outputs API response with `tpc_id` and status
+5. Handles authentication and authorization errors
+
+##### `tp-cancel-api` (API Control Node - TP API Category)  
+- **Inputs**: 1 (cancellation request)
+- **Outputs**: 1 (API response)
+- **Purpose**: Programmatically cancel task packages via REST API calls
+- **Category**: TP API Nodes
+- **Color**: Light red theme (#FFCDD2)
+- **Display Label**: "API - Cancel"
+
+**Configuration**:
+- `name`: Optional custom name (defaults to "API - Cancel")
+- `tp_id`: Optional task package ID (can be provided via message)
+- `auth_token`: Optional bearer token for authentication
+- Fixed API endpoint URL
+
+**Behavior**:
+1. Receives message with `tpc_id` to cancel
+2. Makes HTTP POST request to `/task-package/cancel` endpoint
+3. Validates required fields (`tp_id`, `tpc_id`)
+4. Outputs API response with cancellation status
+5. Handles validation and authorization errors
 - **Inputs**: 1 (from flow)
 - **Outputs**: None
 - **Purpose**: Update user-defined status information
@@ -555,12 +704,54 @@ const cancelCheck = setInterval(() => {
 - Supports complex cancellation workflows with multi-step cleanup processes
 - Shared utilities ensure consistent behavior across all business logic nodes
 
-#### Data Storage Nodes
+##### `tp-check-cancel` (Cancellation Router)
+- **Inputs**: 1 (from flow)
+- **Outputs**: 2 (pass, cancelled)
+- **Purpose**: Check for cancellation and route flow accordingly
+- **Category**: TP Data Nodes
+- **Color**: #EF9A9A (same as tp-delay)
 
-##### `tp-data-store` (Task Data Storage)
+**Configuration**:
+- `name`: Optional custom name (defaults to "Check Cancel")
+
+**Behavior**:
+1. Receives incoming message with `msg.tp_data.tpc_id`
+2. Checks task-specific cancellation state from flow context
+3. Routes to appropriate output based on cancellation status
+4. Supports cleanup flow detection (bypasses cancellation check)
+5. Adds cancellation metadata to cancelled messages
+
+**Output Routing**:
+- **Output 1 (Pass)**: Message continues if task is still active
+- **Output 2 (Cancelled)**: Message routed here if task was cancelled
+
+**Use Case**:
+Enables non-task package nodes to react to cancellation events by routing flow to failure/cleanup sequences.
+
+**Enhanced Cancellation Metadata**:
+```javascript
+// Cancelled output includes additional metadata
+{
+    ...original_message,
+    tp_cancelled: true,
+    tp_cancel_reason: 'Task package was cancelled',
+    tp_cancel_timestamp: new Date().toISOString()
+}
+```
+
+**Cleanup Flow Support**:
+- Cleanup flows are detected and always route to Pass output
+- Supports complex cancellation workflows with nested tp-check-cancel nodes
+- Maintains consistency with other task package cancellation patterns
+
+#### Data Storage Nodes (TP Data Category)
+
+##### `tp-data-store` (Task Data Storage - TP Data Category)
 - **Inputs**: 1 (data to store)
 - **Outputs**: 1 (pass-through)
 - **Purpose**: Store task data in global context for cross-flow sharing
+- **Category**: TP Data Nodes
+- **Color**: Green theme
 
 **Configuration**:
 - `storage_key`: Key field path in message (default: `tp_data.tpc_id`)
@@ -585,10 +776,12 @@ globalContext.set('tp-data-store', {
 })
 ```
 
-##### `tp-data-get` (Task Data Retrieval)
+##### `tp-data-get` (Task Data Retrieval - TP Data Category)
 - **Inputs**: 1 (lookup request)
 - **Outputs**: 1 (enriched data)
 - **Purpose**: Retrieve stored task data and merge with current message
+- **Category**: TP Data Nodes
+- **Color**: Green theme
 
 **Configuration**:
 - `key_field`: Key field path in message (default: `tp_data.tpc_id`)
@@ -822,6 +1015,14 @@ Cancel Flow:  [tp-cancel] ──→ [cleanup step A] ──→ [tp-delay] ──
 ```
 *Note: All cleanup tp-delay nodes process normally regardless of cancellation status*
 
+### Cancellation Detection with tp-check-cancel
+```
+[tp-create] ──→ [custom logic] ──→ [tp-check-cancel] ──→ [normal flow] ──→ [tp-end]
+                                        │
+                                        └─→ [failure cleanup] ──→ [tp-end]
+```
+*Note: Enables non-task package nodes to detect and react to cancellation*
+
 ### Complex Cancellation with Multi-Step Cleanup
 ```
 Task: [tp-start] ──→ [reserve resource] ──→ [tp-delay:processing] ──→ [complete] ──→ [tp-end]
@@ -1038,7 +1239,26 @@ Internal event system uses Node-RED's native message passing with standardized t
 - **Cross-Flow Communication**: Task packages spanning multiple flows
 - **Priority Queuing**: Task execution priority management
 
-### Recently Implemented (v2.3)
+### Recently Implemented (v2.5)
+- ✅ **Node Refactoring**: Renamed call-tp → tp-create-api and cancel-tp → tp-cancel-api with "API - Create/Cancel" branding
+- ✅ **tp-start Simplification**: Removed auto_transition field (clear single purpose: 'created' → 'started')
+- ✅ **tp-create Enhancement**: Refactored auto_start → auto_transition, removed auto_ongoing field
+- ✅ **tp-check-cancel Node**: Added cancellation detection and routing node for non-task package flows
+- ✅ **Workflow Clarity**: Clear separation between tp-create (entry + optional auto-transition) and tp-start (explicit transition)
+- ✅ **EDT Node System**: Added Event Driven Trigger nodes (edt-state, edt-filter, edt-mode) in staging area
+
+### Recently Implemented (v2.4)
+- ✅ **Node Category Organization**: Organized nodes into TP Workflow, TP API, and TP Data categories
+- ✅ **Enhanced API Authorization**: Implemented tp_allowed user-based access control with automatic filtering
+- ✅ **Database Field Mapping Fix**: Corrected tp_id/id field mapping in authorization filtering
+- ✅ **API Control Nodes**: Added create-tp and cancel-tp nodes for programmatic API control
+- ✅ **State Machine Documentation**: Formalized state machine architecture and design patterns
+- ✅ **Authorization Debug Enhancement**: Improved debugging for tp_allowed authorization flow
+- ✅ **Response Format Updates**: Updated API responses to match actual database schema
+- ✅ **OIDC Provider Detection**: Enhanced auto-detection for multiple OIDC provider types
+- ✅ **Clean Logging**: Removed debug logs and emojis for production-ready output
+
+### Previous Releases (v2.3)
 - ✅ **Interactive API Documentation**: Complete Swagger/OpenAPI documentation with interactive UI
 - ✅ **Live Configuration Updates**: Configuration changes take effect without Node-RED restart
 - ✅ **Enhanced API Validation**: Comprehensive request validation for cancel endpoint
@@ -1091,6 +1311,6 @@ Internal event system uses Node-RED's native message passing with standardized t
 
 *This document serves as the authoritative reference for the node-red-task-package module design and implementation.*
 
-**Document Version**: 2.3  
-**Last Updated**: October 2, 2025  
-**Key Changes**: Added shared tp-node-utils with common patterns for business logic nodes, implemented intelligent cleanup flow detection and handling, enhanced tp-delay and tp-end nodes with cleanup flow support, improved cancellation isolation to prevent cross-task interference, and established consistent patterns for cancellable node development.
+**Document Version**: 2.5  
+**Last Updated**: October 10, 2025  
+**Key Changes**: Renamed API control nodes (call-tp → tp-create-api, cancel-tp → tp-cancel-api) with clear "API - Create/Cancel" branding. Simplified tp-start to single purpose (removed auto_transition). Enhanced tp-create with auto_transition field (renamed from auto_start) and removed auto_ongoing. Added tp-check-cancel node for cancellation detection in non-task package flows. Added Event Driven Trigger (EDT) node system for event-based task automation.

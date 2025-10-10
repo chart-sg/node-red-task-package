@@ -103,25 +103,15 @@ async function handleCreateEvent(payload) {
         // Set node status
         node.status({fill: 'blue', shape: 'dot', text: `Created: ${tpc_id.substr(0, 8)}...`})
         
-        // Handle auto transitions
-        if (node.auto_start || node.auto_ongoing) {
+        // Handle auto transition
+        if (node.auto_transition) {
             const taskPackageDB = require('../lib/task-package-db')
             
-            if (node.auto_start) {
-                await taskPackageDB.updateTaskStatus(tpc_id, 'started')
-                tp_data.status = 'started'
-                tp_data.started_at = new Date().toISOString()
-                tp_data.updated_at = new Date().toISOString()
-                msg.topic = `task-package/${node.tp_id}/started`
-            }
-            
-            if (node.auto_ongoing) {
-                await taskPackageDB.updateTaskStatus(tpc_id, 'ongoing')
-                tp_data.status = 'ongoing'
-                tp_data.ongoing_at = new Date().toISOString()
-                tp_data.updated_at = new Date().toISOString()
-                msg.topic = `task-package/${node.tp_id}/ongoing`
-            }
+            await taskPackageDB.updateTaskStatus(tpc_id, 'started')
+            tp_data.status = 'started'
+            tp_data.started_at = new Date().toISOString()
+            tp_data.updated_at = new Date().toISOString()
+            msg.topic = `task-package/${node.tp_id}/started`
             
             msg.tp_data = tp_data
         }
@@ -131,8 +121,7 @@ async function handleCreateEvent(payload) {
         
         if (mod.debug) {
             let status = 'created'
-            if (node.auto_ongoing) status = 'ongoing'
-            else if (node.auto_start) status = 'started'
+            if (node.auto_transition) status = 'started'
             node.log(`${status} task package: ${node.tp_id} with tpc_id: ${tpc_id}`)
         }
         
@@ -162,8 +151,7 @@ function nodeInstance(config) {
     this.tp_form_url = config.tp_form_url
     this.tp_schema = config.tp_schema
     this.config_node = RED.nodes.getNode(config.config_node)
-    this.auto_start = config.auto_start || false
-    this.auto_ongoing = config.auto_ongoing || false
+    this.auto_transition = config.auto_transition || false
 
     // Validation
     if (!this.tp_id) {

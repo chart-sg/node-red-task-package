@@ -1,28 +1,28 @@
-<!-- Create TP Node HTML -->
+<!-- Cancel TP Node HTML -->
 <script type="text/javascript">
     // Isolate this code
     (function () {
         'use strict'
 
-        const nodeLabel = 'create-tp'
+        const nodeLabel = 'tp-cancel-api'
 
         RED.nodes.registerType(nodeLabel, {
             category: 'Task Package',
             color: '#FFCDD2',
             defaults: {
                 name: { value: '' },
-                tp_id: { value: '', required: true },
+                tp_id: { value: '' },
                 auth_token: { value: '' }
             },
             inputs: 1,
             outputs: 1,
-            inputLabels: ['Create TP request'],
+            inputLabels: ['Cancel TP request'],
             outputLabels: ['API response'],
             icon: 'tp.svg',
             align: 'right',
-            paletteLabel: 'Create New',
+            paletteLabel: 'API - Cancel',
             label: function () { 
-                return this.name || 'Create New'
+                return this.name || 'API - Cancel'
             },
             oneditprepare: function() {
                 // Populate tp_id dropdown with available task packages
@@ -30,7 +30,7 @@
                     const dropdown = $('#node-input-tp_id')
                     const currentValue = this.tp_id
                     dropdown.empty()
-                    dropdown.append('<option value="">Select task package...</option>')
+                    dropdown.append('<option value="">Any task package...</option>')
                     
                     // Scan existing tp-create nodes in workspace for task packages
                     RED.nodes.eachNode((node) => {
@@ -51,13 +51,8 @@
                 populateTaskPackages.call(this)
                 
                 // Refresh button functionality
-                $('#refresh-tp-list').on('click', () => {
+                $('#refresh-tp-list-cancel').on('click', () => {
                     populateTaskPackages.call(this)
-                })
-                
-                // Allow manual entry if needed
-                $('#node-input-tp_id').on('change', function() {
-                    // This allows for manual entry while still providing dropdown convenience
                 })
             }
         })
@@ -65,20 +60,23 @@
     })()
 </script>
 
-<script type="text/html" data-template-name="create-tp">
+<script type="text/html" data-template-name="tp-cancel-api">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Create New">
+        <input type="text" id="node-input-name" placeholder="API - Cancel">
     </div>
     
     <div class="form-row">
         <label for="node-input-tp_id"><i class="fa fa-tasks"></i> Task Package ID</label>
         <select id="node-input-tp_id" style="width: 70%;">
-            <option value="">Select task package...</option>
+            <option value="">Any task package...</option>
         </select>
-        <button type="button" id="refresh-tp-list" class="red-ui-button" style="margin-left: 10px;">
+        <button type="button" id="refresh-tp-list-cancel" class="red-ui-button" style="margin-left: 10px;">
             <i class="fa fa-refresh"></i> Refresh
         </button>
+        <div class="form-tips">
+            <b>Optional:</b> Restrict cancellation to specific task package type. Leave empty to allow any.
+        </div>
     </div>
     
     <div class="form-row">
@@ -90,26 +88,30 @@
     </div>
     
     <div class="form-tips">
-        <p><b>Input Message:</b></p>
+        <p><b>Required Input Message:</b></p>
         <ul>
-            <li><code>msg.tp_id</code> - Override the configured task package ID</li>
-            <li><code>msg.payload</code> - Data to include with the TP creation request</li>
-            <li><code>msg.accessToken</code> - Override the authentication token</li>
+            <li><code>msg.tpc_id</code> - Task instance ID to cancel (required)</li>
+            <li><code>msg.tp_id</code> - Override the configured task package ID (optional)</li>
+            <li><code>msg.payload</code> - Additional data to include with cancellation (optional)</li>
+            <li><code>msg.accessToken</code> - Override the authentication token (optional)</li>
         </ul>
-        <p><b>Note:</b> This node creates TPs via API call and outputs the API response.</p>
+        <p><b>Note:</b> This node cancels TPs via API call and outputs the API response.</p>
     </div>
 </script>
 
-<script type="text/html" data-help-name="create-tp">
-    <p>Creates task packages via API call. This is a control node for programmatically creating TPs from within Node-RED flows.</p>
+<script type="text/html" data-help-name="tp-cancel-api">
+    <p>Cancels task packages via API call. This is a control node for programmatically cancelling TPs from within Node-RED flows.</p>
     
     <h3>Inputs</h3>
     <dl class="message-properties">
+        <dt>tpc_id <span class="property-type">string</span></dt>
+        <dd><b>Required:</b> The task instance ID (UUID) of the specific TP to cancel.</dd>
+        
         <dt>tp_id <span class="property-type">string</span></dt>
-        <dd><b>Optional:</b> Override the configured task package ID for this creation request.</dd>
+        <dd><b>Optional:</b> Override the configured task package ID for this cancellation request.</dd>
         
         <dt>payload <span class="property-type">any</span></dt>
-        <dd>Data to include with the TP creation request. This will be passed to the task package flow.</dd>
+        <dd><b>Optional:</b> Additional data to include with the cancellation request (e.g., reason).</dd>
         
         <dt>accessToken <span class="property-type">string</span></dt>
         <dd><b>Optional:</b> Override the configured authentication token for this request.</dd>
@@ -118,13 +120,13 @@
     <h3>Outputs</h3>
     <dl class="message-properties">
         <dt>payload <span class="property-type">object</span></dt>
-        <dd>API response from the task package creation request. Contains <code>tpc_id</code> and <code>status</code> on success, or <code>error</code> on failure.</dd>
+        <dd>API response from the task package cancellation request. Contains <code>status</code> and optional <code>message</code> on success, or <code>error</code> on failure.</dd>
         
         <dt>topic <span class="property-type">string</span></dt>
-        <dd>Set to "tp-create-success" on successful creation or "tp-create-error" on failure.</dd>
+        <dd>Set to "tp-cancel-success" on successful cancellation or "tp-cancel-error" on failure.</dd>
         
         <dt>tp_data <span class="property-type">object</span></dt>
-        <dd>Additional task package data including tpc_id, tp_id, status, and created_at timestamp (success only).</dd>
+        <dd>Additional task package data including tpc_id, tp_id, status, cancelled_at timestamp, and optional message (success only).</dd>
         
         <dt>error <span class="property-type">boolean</span></dt>
         <dd>Set to true when an error occurs (error messages only).</dd>
@@ -137,8 +139,9 @@
         
         <dt>Task Package ID <span class="property-type">string</span></dt>
         <dd>
-            <b>Required:</b> The tp_id of the task package type to create. Can be overridden by <code>msg.tp_id</code>.
-            Select from available task packages or enter manually.
+            <b>Optional:</b> Restrict cancellation to specific task package type. 
+            If specified, the API will validate that the tpc_id belongs to this tp_id.
+            Leave empty to allow cancellation of any task package type.
         </dd>
         
         <dt>Auth Token <span class="property-type">string</span></dt>
@@ -149,44 +152,54 @@
     </dl>
     
     <h3>API Integration</h3>
-    <p>This node makes HTTP POST calls to <code>/task-package/start</code> with the following structure:</p>
+    <p>This node makes HTTP POST calls to <code>/task-package/cancel</code> with the following structure:</p>
     <pre><code>{
   "tp_id": "tp01",
+  "tpc_id": "550e8400-e29b-41d4-a716-446655440000",
   ...payload fields
 }</code></pre>
     
     <h3>Status Indicators</h3>
     <ul>
-        <li><b>Blue ring:</b> Ready to create TPs</li>
+        <li><b>Blue ring:</b> Ready to cancel TPs</li>
         <li><b>Yellow dot:</b> API call in progress</li>
-        <li><b>Green dot:</b> TP created successfully (shows tpc_id)</li>
-        <li><b>Red ring:</b> Creation failed (check Node-RED logs)</li>
+        <li><b>Orange dot:</b> TP cancellation initiated or already cancelling</li>
+        <li><b>Red ring:</b> Cancellation failed (check Node-RED logs)</li>
     </ul>
     
     <h3>Usage Examples</h3>
     
-    <h4>Basic Creation</h4>
-    <p>Configure the node with a tp_id and send any message to trigger creation:</p>
-    <pre><code>msg.payload = {
-    "room": "101",
-    "priority": "high"
+    <h4>Basic Cancellation</h4>
+    <p>Cancel a specific task instance:</p>
+    <pre><code>msg.tpc_id = "550e8400-e29b-41d4-a716-446655440000"
+msg.payload = {
+    "reason": "User requested cancellation"
 }</code></pre>
     
-    <h4>Dynamic TP Type with Token</h4>
-    <p>Override the TP type and authentication at runtime:</p>
-    <pre><code>msg.tp_id = "emergency_transport"
+    <h4>Authenticated Cancellation</h4>
+    <p>Cancel with dynamic authentication:</p>
+    <pre><code>msg.tpc_id = "550e8400-e29b-41d4-a716-446655440000"
 msg.accessToken = "eyJhbGciOiJIUzI1NiIs..."
 msg.payload = {
-    "patient_id": "12345",
-    "destination": "OR2"
+    "reason": "Emergency cancellation"
 }</code></pre>
     
     <h3>Error Handling</h3>
     <p>Errors are logged to Node-RED and shown in the node status. Common errors include:</p>
     <ul>
-        <li>Missing tp_id</li>
+        <li>Missing tpc_id in input message</li>
+        <li>Task instance not found</li>
+        <li>Task already completed/cancelled</li>
+        <li>tp_id mismatch (when configured)</li>
         <li>API endpoint unreachable</li>
         <li>Authentication failures</li>
-        <li>Invalid payload data</li>
+    </ul>
+    
+    <h3>Cancellation States</h3>
+    <p>The API handles different cancellation scenarios:</p>
+    <ul>
+        <li><b>First cancellation:</b> Status changes to "cancelling", flows are notified</li>
+        <li><b>Already cancelling:</b> Returns success with message "already being cancelled"</li>
+        <li><b>Not cancellable:</b> Returns error if task is completed, failed, or already cancelled</li>
     </ul>
 </script>
