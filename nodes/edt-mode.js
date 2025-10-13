@@ -12,6 +12,9 @@
 
 //#region ----- Module level variables ---- //
 
+// Import EDT Mode database for integration
+const edtModeDB = require('../lib/edt-mode-db');
+
 /** Main module variables */
 const mod = {
     /** @type {RED} Reference to the master RED instance */
@@ -27,10 +30,37 @@ const mod = {
 //#region ----- Module-level support functions ----- //
 
 /**
+ * Extract entity ID from message based on specified field
+ * @param {object} msg - The Node-RED message object
+ * @param {string} entityField - Field name to extract entity ID from
+ * @returns {string} - Entity ID or 'default' if not found
+ */
+function resolveEntityId(msg, entityField) {
+    if (!entityField || !msg) {
+        return 'default'
+    }
+    
+    // Support nested field access (e.g., 'payload.room_id')
+    const fieldParts = entityField.split('.')
+    let value = msg
+    
+    for (const part of fieldParts) {
+        if (value && typeof value === 'object' && part in value) {
+            value = value[part]
+        } else {
+            return 'default'
+        }
+    }
+    
+    // Convert to string and sanitize
+    return String(value || 'default')
+}
+
+/**
  * Handle incoming messages and apply mode control
  * @param {object} msg - The Node-RED message object
  */
-function handleMessage(msg) {
+async function handleMessage(msg) {
     const node = this
     
     try {
@@ -41,12 +71,54 @@ function handleMessage(msg) {
         }
         
         // Regular message - check if EDT is enabled
-        const globalContext = node.context().global
-        const modeKey = `edt_mode_${node.mode_name}`
-        const currentMode = globalContext.get(modeKey)
+        // Get entity identifier for mode checking  
+        const entityId = resolveEntityId(msg, node.entity_field) || 'default'
+        
+        // Check mode state via API (with fallback to global context)
+        let currentMode
+        try {
+            currentMode = await edtModeDB.getModeState(node.mode_name, entityId, node.initial_state)
+            
+            // If this is the first time we see this entity, create database entry
+            // Use a more robust check to avoid race conditions
+            if (!currentMode.updated_by || currentMode.updated_by === 'system') {
+                try {
+                    await edtModeDB.setModeState(
+                        node.mode_name,
+                        entityId,
+                        node.initial_state,
+                        'auto-message',
+                        `Auto-created for entity ${entityId} from message via node ${node.id}`
+                    )
+                    if (mod.debug) {
+                        node.log(`📊 Created database entry for ${node.mode_name}:${entityId}`)
+                    }
+                } catch (dbError) {
+                    // Ignore if another node already created the entry (race condition)
+                    if (!dbError.message.includes('UNIQUE constraint')) {
+                        throw dbError
+                    } else {
+                        if (mod.debug) {
+                            node.log(`📊 Database entry already exists for ${node.mode_name}:${entityId} (race condition handled)`)
+                        }
+                        // Re-fetch the state that was created by the other node
+                        currentMode = await edtModeDB.getModeState(node.mode_name, entityId, node.initial_state)
+                    }
+                }
+            }
+        } catch (error) {
+            // Fallback to global context if API fails
+            const globalContext = node.context().global
+            const modeKey = `edt_mode_${node.mode_name}_${entityId}`
+            currentMode = { enabled: globalContext.get(modeKey) !== false }
+            
+            if (mod.debug) {
+                node.warn(`Database access failed, using global context fallback: ${error.message}`)
+            }
+        }
         
         // Default to enabled if not set
-        const isEnabled = currentMode !== false
+        const isEnabled = currentMode.enabled !== false
         
         if (!isEnabled) {
             // EDT is disabled, drop message
@@ -186,15 +258,73 @@ function nodeInstance(config) {
     // Transfer config items from the Editor panel to the runtime
     this.name = config.name || 'EDT Mode'
     this.mode_name = config.mode_name || 'default'
+    this.entity_field = config.entity_field || ''
     this.initial_state = config.initial_state !== false // Default to enabled
     
-    // Initialize mode state in global context
+    // Check for potential conflicts with other EDT mode nodes
+    this.checkForConflicts = () => {
+        const RED = mod.RED
+        const allNodes = RED.nodes.getFlows()
+        
+        let conflictingNodes = 0
+        for (const flow of allNodes) {
+            if (flow.nodes) {
+                for (const otherNode of flow.nodes) {
+                    if (otherNode.type === 'edt-mode' && 
+                        otherNode.id !== this.id &&
+                        otherNode.mode_name === this.mode_name &&
+                        otherNode.entity_field === this.entity_field) {
+                        conflictingNodes++
+                    }
+                }
+            }
+        }
+        
+        if (conflictingNodes > 0) {
+            this.warn(`⚠️  Found ${conflictingNodes} other edt-mode node(s) with same scope "${this.mode_name}" and entity field "${this.entity_field}". This may cause conflicting behavior.`)
+        }
+    }
+    
+    // Run conflict check
+    if (mod.debug) {
+        this.checkForConflicts()
+    }
+    
+    // Initialize mode state in global context AND database
     const globalContext = this.context().global
     const modeKey = `edt_mode_${this.mode_name}`
     
     // Only set initial state if not already set (preserve across deploys)
     if (globalContext.get(modeKey) === undefined) {
         globalContext.set(modeKey, this.initial_state)
+        
+        // Create database entry on deployment with 'default' entity if no entity_field specified
+        if (!this.entity_field) {
+            this.initializeDatabaseEntry()
+        }
+        
+        if (mod.debug) {
+            this.log(`📊 Initial state set for mode: ${this.mode_name} = ${this.initial_state}`)
+        }
+    }
+    
+    // Define database initialization method
+    this.initializeDatabaseEntry = async () => {
+        try {
+            await edtModeDB.setModeState(
+                this.mode_name,           // scope
+                'default',                // entity_id
+                this.initial_state,       // enabled
+                'node-deployment',        // updated_by
+                `Auto-created from ${this.mode_name} node deployment`  // reason
+            )
+            
+            if (mod.debug) {
+                this.log(`📊 Database entry created for mode: ${this.mode_name}`)
+            }
+        } catch (error) {
+            this.error(`Failed to initialize database entry for ${this.mode_name}: ${error.message}`)
+        }
     }
     
     // Set initial status based on current state

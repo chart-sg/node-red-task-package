@@ -12,6 +12,7 @@
             defaults: {
                 name: { value: '' },
                 mode_name: { value: 'default', required: true },
+                entity_field: { value: '' },
                 initial_state: { value: true }
             },
             inputs: 1,
@@ -38,6 +39,14 @@
         <input type="text" id="node-input-mode_name" placeholder="default" value="default">
         <div class="form-tips">
             <b>Required:</b> Unique identifier for this mode control (e.g., night_mode, emergency_mode).
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-entity_field"><i class="fa fa-tag"></i> Entity Field</label>
+        <input type="text" id="node-input-entity_field" placeholder="room_id" value="">
+        <div class="form-tips">
+            <b>Optional:</b> Message field to use as entity ID (e.g., room_id, patient_id). Leave blank to use 'default'.
         </div>
     </div>
     
