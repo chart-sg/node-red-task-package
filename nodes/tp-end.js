@@ -25,6 +25,8 @@ const mod = {
     debug: false,
 }
 
+const tpEvents = require('../lib/task-package-events')
+
 //#endregion
 
 //#region ----- Module-level support functions ----- //
@@ -110,6 +112,21 @@ async function inputMsgHandler(msg, send, done) {
             }
         } catch (dbError) {
             node.warn(`Failed to update database: ${dbError.message}`)
+        }
+        
+        // Emit completion event for other nodes to listen
+        tpEvents.emitComplete(tpc_id, {
+            tpc_id: tpc_id,
+            tp_id: task.tp_id,
+            tp_name: task.tp_name,
+            final_status: finalStatus,
+            completed_at: updatedTpData.completed_at,
+            was_cancelled: wasCancelled,
+            payload: msg.payload
+        })
+        
+        if (mod.debug) {
+            node.log(`Emitted completion event for: ${tpc_id} with status: ${finalStatus}`)
         }
         
         // Set node status based on completion type

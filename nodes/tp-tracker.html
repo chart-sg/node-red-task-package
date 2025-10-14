@@ -1,0 +1,97 @@
+<script type="text/javascript">
+    RED.nodes.registerType('tp-tracker', {
+        category: 'Task Package',
+        color: '#EF9A9A',
+        defaults: {
+            name: { value: '' },
+            action: { value: 'store', required: true },
+            key_field: { value: 'entity_id', required: true },
+            tpc_id_field: { value: 'tpc_id', required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: 'font-awesome/fa-database',
+        label: function() {
+            return this.name || `TP Tracker (${this.action})`;
+        },
+        labelStyle: function() {
+            return this.name ? 'node_label_italic' : '';
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="tp-tracker">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-action"><i class="fa fa-cog"></i> Action</label>
+        <select id="node-input-action">
+            <option value="store">Store TPC ID</option>
+            <option value="lookup">Lookup TPC ID</option>
+            <option value="remove">Remove TPC ID</option>
+            <option value="list">List All TPC IDs</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-key_field"><i class="fa fa-key"></i> Key Field</label>
+        <input type="text" id="node-input-key_field" placeholder="entity_id">
+        <div class="form-tips">Field path to use as tracking key (e.g., 'entity_id', 'payload.location')</div>
+    </div>
+    <div class="form-row">
+        <label for="node-input-tpc_id_field"><i class="fa fa-id-badge"></i> TPC ID Field</label>
+        <input type="text" id="node-input-tpc_id_field" placeholder="tpc_id">
+        <div class="form-tips">Field path to extract tpc_id from (e.g., 'tpc_id', 'payload.tpc_id', 'tp_data.tpc_id')</div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="tp-tracker">
+    <p>Tracks active Task Package Creation IDs (tpc_id) by entity/location key.</p>
+    
+    <h3>Actions</h3>
+    <dl class="message-properties">
+        <dt>store</dt>
+        <dd>Store a new tpc_id for the given key. Requires tpc_id in message.</dd>
+        
+        <dt>lookup</dt>
+        <dd>Find the tpc_id for the given key. Sets msg.tpc_id if found.</dd>
+        
+        <dt>remove</dt>
+        <dd>Remove the tracking entry for the given key.</dd>
+        
+        <dt>list</dt>
+        <dd>List all currently tracked items.</dd>
+    </dl>
+    
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>Key Field <span class="property-type">string</span></dt>
+        <dd>Field path to extract the tracking key (usually entity_id or location)</dd>
+        
+        <dt>tpc_id <span class="property-type">string</span></dt>
+        <dd>For store action: tpc_id from tp_data.tpc_id, payload.tpc_id, or msg.tpc_id</dd>
+        
+        <dt>TPC ID Field <span class="property-type">string</span></dt>
+        <dd>Field path to extract tpc_id (task package creation ID) from message</dd>
+    </dl>
+    
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>tp_tracker <span class="property-type">object</span></dt>
+        <dd>Object containing action result and tracking information</dd>
+        
+        <dt>tpc_id <span class="property-type">string</span></dt>
+        <dd>For lookup action: sets msg.tpc_id to the found tpc_id</dd>
+    </dl>
+    
+    <h3>Details</h3>
+    <p>This node helps track active task package instances by storing their creation IDs (tpc_id) 
+    and associating them with entity keys like bed locations or patient IDs. This enables proper 
+    cancellation of specific task package instances later.</p>
+    
+    <p><strong>Store Action:</strong> When a task package is created, store its tpc_id for later lookup.</p>
+    <p><strong>Lookup Action:</strong> Find the tpc_id for an entity to enable cancellation.</p>
+    <p><strong>Remove Action:</strong> Clean up tracking when a task package completes.</p>
+    <p><strong>List Action:</strong> Debug/monitoring - see all currently tracked items.</p>
+</script>

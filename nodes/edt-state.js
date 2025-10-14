@@ -99,12 +99,25 @@ function handleMessage(msg) {
             newStateData = msg.payload || {}
         }
         
-        // Update state with timestamp
+        // Compare only the actual state data (exclude metadata)
+        const previousStateData = { ...currentState }
+        delete previousStateData.last_updated
+        delete previousStateData.update_count
+        delete previousStateData.last_state_change  // ← Add this back!
+        
+        // Check if actual state data changed
+        const actualStateChanged = JSON.stringify(previousStateData) !== JSON.stringify(newStateData)
+        
+        // Update state with timestamp (keep last_state_change separate)
+        const now = new Date().toISOString()
+        const lastStateChange = actualStateChanged ? now : (currentState.last_state_change || now)
+        
         const updatedState = {
             ...currentState,
             ...newStateData,
-            last_updated: new Date().toISOString(),
-            update_count: (currentState.update_count || 0) + 1
+            last_updated: now,
+            update_count: (currentState.update_count || 0) + 1,
+            last_state_change: lastStateChange  // ← Store it for next comparison
         }
         
         // Store updated state
@@ -115,11 +128,16 @@ function handleMessage(msg) {
         const outputMsg = {
             ...msg,
             entity_id: entityId,
-            entity_state: updatedState,
-            previous_state: currentState,
-            state_changed: JSON.stringify(currentState) !== JSON.stringify(updatedState),
+            entity_state: { ...updatedState },
+            previous_state: { ...currentState },
+            state_changed: actualStateChanged,
+            last_state_change: lastStateChange,  // ← At msg level
             state_name: node.state_name || 'default'
         }
+        
+        // Remove last_state_change from the state objects to keep them clean
+        delete outputMsg.entity_state.last_state_change
+        delete outputMsg.previous_state.last_state_change
         
         // Update node status
         const entityCount = Object.keys(entityStates).length

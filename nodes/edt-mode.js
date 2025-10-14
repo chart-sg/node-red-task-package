@@ -290,24 +290,6 @@ function nodeInstance(config) {
         this.checkForConflicts()
     }
     
-    // Initialize mode state in global context AND database
-    const globalContext = this.context().global
-    const modeKey = `edt_mode_${this.mode_name}`
-    
-    // Only set initial state if not already set (preserve across deploys)
-    if (globalContext.get(modeKey) === undefined) {
-        globalContext.set(modeKey, this.initial_state)
-        
-        // Create database entry on deployment with 'default' entity if no entity_field specified
-        if (!this.entity_field) {
-            this.initializeDatabaseEntry()
-        }
-        
-        if (mod.debug) {
-            this.log(`📊 Initial state set for mode: ${this.mode_name} = ${this.initial_state}`)
-        }
-    }
-    
     // Define database initialization method
     this.initializeDatabaseEntry = async () => {
         try {
@@ -324,6 +306,24 @@ function nodeInstance(config) {
             }
         } catch (error) {
             this.error(`Failed to initialize database entry for ${this.mode_name}: ${error.message}`)
+        }
+    }
+
+    // Initialize mode state in global context AND database
+    const globalContext = this.context().global
+    const modeKey = `edt_mode_${this.mode_name}`
+    
+    // Only set initial state if not already set (preserve across deploys)
+    if (globalContext.get(modeKey) === undefined) {
+        globalContext.set(modeKey, this.initial_state)
+        
+        // Create database entry on deployment with 'default' entity if no entity_field specified
+        if (!this.entity_field) {
+            this.initializeDatabaseEntry()
+        }
+        
+        if (mod.debug) {
+            this.log(`📊 Initial state set for mode: ${this.mode_name} = ${this.initial_state}`)
         }
     }
     
