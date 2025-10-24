@@ -46,7 +46,9 @@
         <label for="node-input-entity_field"><i class="fa fa-tag"></i> Entity Field</label>
         <input type="text" id="node-input-entity_field" placeholder="room_id" value="">
         <div class="form-tips">
-            <b>Optional:</b> Message field to use as entity ID (e.g., room_id, patient_id). Leave blank to use 'default'.
+            <b>Optional:</b> Message field to use as entity identifier for per-entity mode control.
+            Supports nested fields (e.g., "payload.room_id", "bed_id", "patient.id").
+            If left blank, uses "default" for all messages.
         </div>
     </div>
     
@@ -75,10 +77,19 @@
     <h3>Outputs</h3>
     <dl class="message-properties">
         <dt>Output 1: Enabled Messages <span class="property-type">any</span></dt>
-        <dd>Original messages that pass through when mode is enabled, with added _edt_mode metadata.</dd>
+        <dd>Original messages that pass through when mode is enabled, with added _edt_mode metadata containing entity information.</dd>
         
         <dt>Output 2: Status Updates <span class="property-type">object</span></dt>
-        <dd>Status messages when mode state changes, with topic "edt-mode/status/{mode_name}".</dd>
+        <dd>
+            Status messages when mode state changes for any entity, with topic "edt-mode/status/{mode_name}".
+            Includes entity_id, current state, and change reason.
+            <br><strong>Note:</strong> This output fires when:
+            <ul>
+                <li>API endpoints (/task-package/edt/mode/enable or disable) change the state</li>
+                <li>Control messages change the mode state</li>
+                <li>Events are received from other EDT mode nodes with the same scope</li>
+            </ul>
+        </dd>
     </dl>
     
     <h3>Configuration</h3>
@@ -90,10 +101,23 @@
             Example: "night_mode", "emergency_mode", "maintenance_mode"
         </dd>
         
+        <dt>Entity Field <span class="property-type">string</span></dt>
+        <dd>
+            <b>Optional:</b> Message field to extract entity identifier from for per-entity control.
+            Supports nested field access using dot notation (e.g., "payload.room_id").
+            If blank, all messages use "default" entity.
+            <br><strong>Examples:</strong>
+            <ul>
+                <li>"bed_id" → Uses msg.bed_id</li>
+                <li>"payload.room" → Uses msg.payload.room</li>
+                <li>"patient.identifier" → Uses msg.patient.identifier</li>
+            </ul>
+        </dd>
+        
         <dt>Initial State <span class="property-type">boolean</span></dt>
         <dd>
             Default state when Node-RED starts or when first deployed. State persists across 
-            deploys and restarts once set.
+            deploys and restarts once set. Each entity gets this initial state when first seen.
             Default: Enabled (checked)
         </dd>
     </dl>
@@ -109,8 +133,43 @@
     
     <h3>API Integration</h3>
     <p>
-        The mode state can be controlled via REST API (future feature) or MQTT commands.
-        State is stored in Node-RED global context for persistence.
+        The mode state can be controlled via REST API endpoints. When the API changes the state,
+        all EDT mode nodes with matching scope are automatically notified via events.
+    </p>
+    
+    <h4>API Endpoints</h4>
+    <ul>
+        <li><code>POST /task-package/edt/mode/enable</code> - Enable mode for entity/entities</li>
+        <li><code>POST /task-package/edt/mode/disable</code> - Disable mode for entity/entities</li>
+        <li><code>GET /task-package/edt/mode/status</code> - Get current mode status</li>
+    </ul>
+    
+    <h4>API Example</h4>
+    <pre>
+// Enable bed monitoring for bed_1
+POST /task-package/edt/mode/enable
+{
+  "scope": "bed_monitoring",
+  "entity_id": "bed_1", 
+  "reason": "Patient admitted"
+}
+
+// Disable multiple beds
+POST /task-package/edt/mode/disable
+{
+  "scope": "bed_monitoring",
+  "entity_ids": ["bed_1", "bed_2"],
+  "reason": "Night shift"
+}
+    </pre>
+    
+    <p>
+        When these API calls are made, all EDT mode nodes with scope="bed_monitoring" will:
+        <ol>
+            <li>Immediately receive the state change via event notification</li>
+            <li>Send status update message to Output 2</li>
+            <li>Update their visual status indicator</li>
+        </ol>
     </p>
     
     <h3>Usage</h3>

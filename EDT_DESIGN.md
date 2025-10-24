@@ -4,11 +4,13 @@
 
 The **Event-Driven Tasks (EDT)** module extends the node-red-task-package system to handle real-time sensor data streams and automatically manage Task Package (TP) lifecycles based on dynamic conditions. EDT provides simple building blocks that users combine to create sophisticated automation workflows, following the Task Package philosophy of **flexibility over complexity**.
 
-**✅ IMPLEMENTATION STATUS: Phase 1 Complete + API Integration**
-- **Core Nodes**: All 3 nodes implemented and functional
-- **API Endpoints**: Full REST API integration with unified swagger documentation  
+**✅ IMPLEMENTATION STATUS: Phase 1 & 2 Complete - Production Ready**
+- **Core Nodes**: All 3 nodes implemented and functional with proper event integration
+- **API Endpoints**: Full REST API integration with real-time event notifications
 - **Database Layer**: SQLite persistence with audit trail and state management
-- **Testing**: Bed monitoring use case validated with MQTT simulation
+- **Event System**: API changes immediately notify EDT nodes via event emission
+- **Output 2**: Status updates now work properly for all state changes
+- **Testing**: Bed monitoring use case validated with MQTT simulation and API integration
 
 **Core Philosophy**:
 - **🧩 Simple Building Blocks**: Minimal nodes that users combine creatively ✅
@@ -140,7 +142,8 @@ Output: ❌ BLOCKED - No change detected, filter out spam
 
 #### What it does:
 - **Gates** event processing per entity (bed, room, robot)
-- **Provides** API endpoints for dynamic control
+- **Listens** for API state changes via event system
+- **Emits** status updates to Output 2 when changes occur
 - **Supports** bulk operations and individual entity control
 - **Automatic** database entry creation on message arrival
 - **Conflict detection** for duplicate node configurations
@@ -179,6 +182,8 @@ GET /task-package/edt/mode/status?scope=bed_monitoring&entity_id=bed_1
 #### Implementation Features:
 - **Entity Field Support**: Extracts entity_id from message fields (e.g., `msg.bed_id`, `msg.room`, `msg.payload.patient_id`)
 - **Database Persistence**: SQLite storage with audit trail and history tracking
+- **Event-Driven Notifications**: API changes immediately notify all relevant EDT nodes
+- **Real-time Output 2**: Status updates fire instantly when state changes
 - **Race Condition Handling**: Graceful handling of simultaneous database writes
 - **Fallback Mechanisms**: Global context fallback if database unavailable
 - **Swagger Documentation**: Full API documentation at `/task-package/docs`
@@ -194,7 +199,7 @@ Input: { bed_id: "bed_1", event: "bed_exit", payload: {...} }
 // 3. Creates entry if first time seeing this entity
 // 4. Returns enabled/disabled status
 
-Output (if enabled): { 
+Output 1 (if enabled): { 
   bed_id: "bed_1", 
   event: "bed_exit", 
   payload: {...},
@@ -205,7 +210,19 @@ Output (if enabled): {
   } 
 }
 
-Output (if disabled): Message dropped, red status indicator shown
+Output 1 (if disabled): Message dropped, red status indicator shown
+
+Output 2 (when API changes state): {
+  topic: "edt-mode/status/bed_monitoring",
+  payload: {
+    mode_name: "bed_monitoring",
+    entity_id: "bed_1", 
+    enabled: false,
+    reason: "Patient discharged",
+    updated_by: "nurse_station",
+    changed_at: "2025-10-24T12:18:31.198Z"
+  }
+}
 ```
 
 ## User-Driven Flow Patterns
@@ -299,6 +316,72 @@ function(msg) {
     ↓ (no) → [Function: "Direct Assign"] → [create-tp]
 ```
 
+## Event-Driven Architecture
+
+### How Output 2 Works
+
+**The Problem Solved**: Previously, EDT mode nodes had no way to know when the API changed their state, so Output 2 never fired for external changes.
+
+**The Solution**: Event-driven notifications using Node.js EventEmitter pattern.
+
+### Event Flow
+```
+API Request → Database Update → Event Emission → EDT Node Listeners → Output 2
+```
+
+**Example:**
+```bash
+# API call changes bed state
+POST /task-package/edt/mode/disable
+{
+  "scope": "bed_monitoring",
+  "entity_id": "bed_1", 
+  "reason": "Patient discharged",
+  "updated_by": "nurse_station"
+}
+
+# Results in:
+# 1. Database updated
+# 2. Event emitted: 'edt-mode-change'
+# 3. All EDT nodes with scope="bed_monitoring" receive event
+# 4. Output 2 fires with status update
+```
+
+### Event Data Structure
+```javascript
+// Event emitted by API endpoints
+taskPackageEvents.emit('edt-mode-change', {
+  scope: 'bed_monitoring',
+  entity_id: 'bed_1',
+  enabled: false,
+  reason: 'Patient discharged',
+  updated_by: 'nurse_station',
+  changed_at: '2025-10-24T12:18:31.198Z'
+})
+
+// Output 2 message from EDT node
+{
+  topic: 'edt-mode/status/bed_monitoring',
+  payload: {
+    mode_name: 'bed_monitoring',
+    entity_id: 'bed_1',
+    entity_field: 'bed_id',
+    enabled: false,
+    changed: true,
+    reason: 'Patient discharged',
+    updated_by: 'nurse_station', 
+    changed_at: '2025-10-24T12:18:31.198Z'
+  }
+}
+```
+
+### Benefits of Event Architecture
+- **Real-time**: Changes propagate immediately
+- **Decoupled**: API and nodes don't need direct references
+- **Scalable**: Multiple EDT nodes can listen to same events
+- **Simple**: No complex polling or state synchronization
+- **Reliable**: Events fire exactly when database changes
+
 ## Integration with Task Package System
 
 ### Reuse Existing TP Nodes
@@ -352,6 +435,8 @@ GET /edt/state/changes         # Get recent state changes
 - Handle polling duplicate prevention ✅
 - Track state changes for beds/robots/rooms ✅
 - Dynamic on/off control per entity with API ✅
+- Real-time event notifications from API to EDT nodes ✅
+- Output 2 status updates working properly ✅
 - Integration with existing `tp-create-api`/`tp-cancel-api` nodes ✅
 - Race condition handling and conflict detection ✅
 
@@ -360,6 +445,8 @@ GET /edt/state/changes         # Get recent state changes
 
 **Features Implemented**:
 - REST API endpoints integrated into task-package API ✅
+- Event emission system for real-time notifications ✅
+- Output 2 status updates working with API changes ✅
 - Bulk operations support (single endpoint handles arrays) ✅
 - SQLite database persistence with audit trail ✅
 - Swagger documentation at `/task-package/docs` ✅
@@ -437,24 +524,22 @@ GET /edt/state/changes         # Get recent state changes
 
 ---
 
-**Document Version**: 3.0  
-**Last Updated**: October 13, 2025  
-**Status**: Phase 1 & 2 Complete - Production Ready
+**Document Version**: 3.1  
+**Last Updated**: October 24, 2025  
+**Status**: Phase 1 & 2 Complete - Production Ready with Event Integration
 
-**Key Changes in v3.0**:
-- **✅ Implementation Complete**: All 3 core nodes functional with full API integration
-- **✅ Database Layer**: SQLite persistence with audit trail and entity management
-- **✅ API Integration**: Unified with task-package API, supports bulk operations
-- **✅ Entity Field Support**: Dynamic entity ID extraction from configurable message fields
-- **✅ Race Condition Handling**: Robust conflict detection and graceful error recovery
-- **✅ Production Testing**: Bed monitoring use case validated with MQTT simulation
-- **✅ Documentation**: Complete swagger API docs and implementation examples
-- **✅ Conflict Detection**: Warns users about potentially conflicting node configurations
+**Key Changes in v3.1**:
+- **✅ Fixed Output 2**: Now works properly with real-time event notifications
+- **✅ Event-Driven Architecture**: API changes immediately notify all relevant EDT nodes
+- **✅ Simplified Node Logic**: Removed complex internal state tracking and periodic polling
+- **✅ Real-time Updates**: Status changes propagate instantly via event system
+- **✅ Better updated_by Tracking**: API accepts custom updated_by for audit trails
+- **✅ Production Validated**: Complete bed monitoring workflow with API integration tested
 
-**Validated Use Cases**:
-- **Hospital Bed Monitoring**: Multi-bed EDT control with individual enable/disable via API
-- **MQTT Integration**: Real-time sensor data processing with spam filtering
-- **Database Persistence**: Automatic entity creation and state management
-- **Bulk Operations**: Night shift disable/enable for multiple beds simultaneously
+**Event System Features**:
+- **Immediate Notifications**: API changes trigger instant Output 2 status updates
+- **Cross-Node Communication**: Multiple EDT nodes with same scope receive events
+- **Audit Trail Integration**: Event data includes who/why/when for changes
+- **Decoupled Architecture**: API and nodes communicate via clean event interface
 
 *This document serves as the authoritative specification for the Event-Driven Tasks (EDT) module development and integration with the node-red-task-package system.*

@@ -14,6 +14,7 @@
 
 // Import EDT Mode database for integration
 const edtModeDB = require('../lib/edt-mode-db');
+const taskPackageEvents = require('../lib/task-package-events');
 
 /** Main module variables */
 const mod = {
@@ -74,13 +75,12 @@ async function handleMessage(msg) {
         // Get entity identifier for mode checking  
         const entityId = resolveEntityId(msg, node.entity_field) || 'default'
         
-        // Check mode state via API (with fallback to global context)
+        // Check mode state via database (with fallback to global context)
         let currentMode
         try {
             currentMode = await edtModeDB.getModeState(node.mode_name, entityId, node.initial_state)
             
             // If this is the first time we see this entity, create database entry
-            // Use a more robust check to avoid race conditions
             if (!currentMode.updated_by || currentMode.updated_by === 'system') {
                 try {
                     await edtModeDB.setModeState(
@@ -107,7 +107,7 @@ async function handleMessage(msg) {
                 }
             }
         } catch (error) {
-            // Fallback to global context if API fails
+            // Fallback to global context if database fails
             const globalContext = node.context().global
             const modeKey = `edt_mode_${node.mode_name}_${entityId}`
             currentMode = { enabled: globalContext.get(modeKey) !== false }
@@ -125,11 +125,11 @@ async function handleMessage(msg) {
             node.status({
                 fill: 'red', 
                 shape: 'ring', 
-                text: `Disabled: ${node.mode_name}`
+                text: `Disabled: ${entityId}`
             })
             
             if (mod.debug) {
-                node.log(`Message dropped - EDT mode ${node.mode_name} is disabled`)
+                node.log(`Message dropped - EDT mode ${node.mode_name}:${entityId} is disabled`)
             }
             return
         }
@@ -139,6 +139,8 @@ async function handleMessage(msg) {
             ...msg,
             _edt_mode: {
                 mode_name: node.mode_name,
+                entity_id: entityId,
+                entity_field: node.entity_field,
                 enabled: true,
                 checked_at: new Date().toISOString()
             }
@@ -148,13 +150,14 @@ async function handleMessage(msg) {
         node.status({
             fill: 'green', 
             shape: 'dot', 
-            text: `Enabled: ${node.mode_name}`
+            text: `Enabled: ${entityId}`
         })
         
-        node.send(outputMsg)
+        // Send to output 1 (enabled messages)
+        node.send([outputMsg, null])
         
         if (mod.debug) {
-            node.log(`Message passed - EDT mode ${node.mode_name} is enabled`)
+            node.log(`Message passed - EDT mode ${node.mode_name}:${entityId} is enabled`)
         }
         
     } catch (error) {
@@ -167,7 +170,7 @@ async function handleMessage(msg) {
  * Handle mode control messages
  * @param {object} msg - The control message
  */
-function handleModeControl(msg) {
+async function handleModeControl(msg) {
     const node = this
     
     try {
@@ -179,8 +182,20 @@ function handleModeControl(msg) {
             return
         }
         
-        const globalContext = node.context().global
-        const modeKey = `edt_mode_${node.mode_name}`
+        // Extract entity ID from control message or use default
+        const entityId = msg.entity_id || resolveEntityId(msg, node.entity_field) || 'default'
+        const stateKey = `${node.mode_name}_${entityId}`
+        
+        // Get current state from database first
+        let currentMode
+        try {
+            currentMode = await edtModeDB.getModeState(node.mode_name, entityId, node.initial_state)
+        } catch (error) {
+            // Fallback to global context
+            const globalContext = node.context().global
+            const modeKey = `edt_mode_${node.mode_name}_${entityId}`
+            currentMode = { enabled: globalContext.get(modeKey) !== false }
+        }
         
         let newState = null
         
@@ -192,18 +207,20 @@ function handleModeControl(msg) {
                 newState = false
                 break
             case 'toggle':
-                const currentState = globalContext.get(modeKey)
-                newState = currentState === false ? true : false
+                newState = !currentMode.enabled
                 break
             case 'status':
                 // Just return current status
-                const currentStatus = globalContext.get(modeKey)
                 const statusMsg = {
                     topic: `edt-mode/status/${node.mode_name}`,
                     payload: {
                         mode_name: node.mode_name,
-                        enabled: currentStatus !== false,
-                        last_updated: new Date().toISOString()
+                        entity_id: entityId,
+                        entity_field: node.entity_field,
+                        enabled: currentMode.enabled,
+                        reason: currentMode.reason,
+                        updated_by: currentMode.updated_by,
+                        last_updated: currentMode.updated_at || new Date().toISOString()
                     }
                 }
                 node.send([null, statusMsg])
@@ -214,30 +231,66 @@ function handleModeControl(msg) {
         }
         
         if (newState !== null) {
-            // Update mode state
-            globalContext.set(modeKey, newState)
+            // Update mode state in database
+            try {
+                await edtModeDB.setModeState(
+                    node.mode_name,
+                    entityId,
+                    newState,
+                    msg.updated_by || 'control-message',
+                    msg.reason || `Control message: ${action}`
+                )
+            } catch (error) {
+                // Fallback to global context
+                const globalContext = node.context().global
+                const modeKey = `edt_mode_${node.mode_name}_${entityId}`
+                globalContext.set(modeKey, newState)
+                
+                if (mod.debug) {
+                    node.warn(`Database update failed, using global context: ${error.message}`)
+                }
+            }
             
-            // Update node status
+            // Update node status (show entity if not default)
+            const statusText = entityId === 'default' ? 
+                `${newState ? 'Enabled' : 'Disabled'}: ${node.mode_name}` :
+                `${newState ? 'Enabled' : 'Disabled'}: ${entityId}`
+                
             node.status({
                 fill: newState ? 'green' : 'red',
                 shape: newState ? 'dot' : 'ring',
-                text: `${newState ? 'Enabled' : 'Disabled'}: ${node.mode_name}`
+                text: statusText
             })
             
-            // Send status update
+            // Send status update to output 2
             const statusMsg = {
                 topic: `edt-mode/status/${node.mode_name}`,
                 payload: {
                     mode_name: node.mode_name,
+                    entity_id: entityId,
+                    entity_field: node.entity_field,
                     enabled: newState,
+                    changed: true,
                     action: action,
+                    reason: msg.reason || `Control message: ${action}`,
+                    updated_by: msg.updated_by || 'control-message',
                     changed_at: new Date().toISOString()
                 }
             }
             node.send([null, statusMsg])
             
+            // Emit event for other EDT mode nodes with same scope
+            taskPackageEvents.emit('edt-mode-change', {
+                scope: node.mode_name,
+                entity_id: entityId,
+                enabled: newState,
+                reason: msg.reason || `Control message: ${action}`,
+                updated_by: msg.updated_by || 'control-message',
+                changed_at: new Date().toISOString()
+            })
+            
             if (mod.debug) {
-                node.log(`EDT mode ${node.mode_name} ${action}: ${newState}`)
+                node.log(`EDT mode ${node.mode_name}:${entityId} ${action}: → ${newState}`)
             }
         }
         
@@ -327,13 +380,55 @@ function nodeInstance(config) {
         }
     }
     
-    // Set initial status based on current state
+    // Set initial status
     const currentState = globalContext.get(modeKey)
     this.status({
         fill: currentState ? 'green' : 'red',
         shape: currentState ? 'dot' : 'ring',
         text: `${currentState ? 'Enabled' : 'Disabled'}: ${this.mode_name}`
     })
+    
+    // Listen for EDT mode change events from API
+    this.edtEventHandler = (eventData) => {
+        // Check if this event is for our mode
+        if (eventData.scope === this.mode_name) {
+            // Send status update to output 2
+            const statusMsg = {
+                topic: `edt-mode/status/${this.mode_name}`,
+                payload: {
+                    mode_name: eventData.scope,
+                    entity_id: eventData.entity_id,
+                    entity_field: this.entity_field,
+                    enabled: eventData.enabled,
+                    changed: true,
+                    reason: eventData.reason || 'API change',
+                    updated_by: eventData.updated_by || 'api',
+                    changed_at: new Date().toISOString()
+                }
+            }
+            
+            // Send to output 2 (status updates)
+            this.send([null, statusMsg])
+            
+            // Update node status display
+            const statusText = eventData.entity_id === 'default' ? 
+                `${eventData.enabled ? 'Enabled' : 'Disabled'}: ${this.mode_name}` :
+                `${eventData.enabled ? 'Enabled' : 'Disabled'}: ${eventData.entity_id}`
+                
+            this.status({
+                fill: eventData.enabled ? 'green' : 'red',
+                shape: eventData.enabled ? 'dot' : 'ring',
+                text: statusText
+            })
+            
+            if (mod.debug) {
+                this.log(`📢 API change detected for ${eventData.entity_id}: ${eventData.enabled}`)
+            }
+        }
+    }
+    
+    // Register event listener for EDT mode changes
+    taskPackageEvents.on('edt-mode-change', this.edtEventHandler)
     
     // Handle incoming messages
     this.on('input', handleMessage.bind(this))
@@ -344,6 +439,11 @@ function nodeInstance(config) {
 
     /** Clean up on node removal/shutdown */
     this.on('close', (removed, done) => {
+        // Remove event listener
+        if (this.edtEventHandler) {
+            taskPackageEvents.off('edt-mode-change', this.edtEventHandler)
+        }
+        
         if (mod.debug) {
             this.log(`edt-mode node closing: ${this.mode_name}`)
         }
