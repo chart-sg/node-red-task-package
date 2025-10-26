@@ -1,0 +1,197 @@
+<!-- TP Update API Node HTML -->
+<script type="text/javascript">
+    // Isolate this code
+    (function () {
+        'use strict'
+
+        const nodeLabel = 'tp-update-api'
+
+        RED.nodes.registerType(nodeLabel, {
+            category: 'Task Package',
+            color: '#FFCDD2',
+            defaults: {
+                name: { value: '' },
+                tp_id: { value: '' },
+                auth_token: { value: '' }
+            },
+            inputs: 1,
+            outputs: 1,
+            inputLabels: ['Update TP request'],
+            outputLabels: ['API response'],
+            icon: 'tp.svg',
+            align: 'right',
+            paletteLabel: 'API - UPDATE',
+            label: function () { 
+                return this.name || 'API - UPDATE'
+            },
+            oneditprepare: function() {
+                // Populate tp_id dropdown with available task packages
+                const populateTaskPackages = () => {
+                    const dropdown = $('#node-input-tp_id')
+                    const currentValue = this.tp_id
+                    dropdown.empty()
+                    dropdown.append('<option value="">Any task package...</option>')
+                    
+                    // Scan existing tp-start nodes in workspace for task packages
+                    RED.nodes.eachNode((node) => {
+                        if (node.type === 'tp-start' && node.tp_id) {
+                            const selected = node.tp_id === currentValue ? 'selected' : ''
+                            const displayName = node.tp_name || node.tp_id
+                            dropdown.append(`<option value="${node.tp_id}" ${selected}>${node.tp_id} - ${displayName}</option>`)
+                        }
+                    })
+                    
+                    // If no existing value and no tp-start nodes found, allow manual entry
+                    if (currentValue && dropdown.find('option[value="' + currentValue + '"]').length === 0) {
+                        dropdown.append(`<option value="${currentValue}" selected>${currentValue}</option>`)
+                    }
+                }
+                
+                // Populate on dialog open
+                populateTaskPackages.call(this)
+                
+                // Refresh button functionality
+                $('#refresh-tp-list-update-api').on('click', () => {
+                    populateTaskPackages.call(this)
+                })
+                
+                // Allow manual entry if needed
+                $('#node-input-tp_id').on('change', function() {
+                    // This allows for manual entry while still providing dropdown convenience
+                })
+            }
+        })
+
+    })()
+</script>
+
+<script type="text/html" data-template-name="tp-update-api">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="API - UPDATE">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-tp_id"><i class="fa fa-tasks"></i> Task Package ID</label>
+        <select id="node-input-tp_id" style="width: 70%;">
+            <option value="">Any task package...</option>
+        </select>
+        <button type="button" id="refresh-tp-list-update-api" class="red-ui-button" style="margin-left: 10px;">
+            <i class="fa fa-refresh"></i> Refresh
+        </button>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-auth_token"><i class="fa fa-key"></i> Auth Token</label>
+        <input type="password" id="node-input-auth_token" placeholder="Bearer token">
+        <div class="form-tips">
+            <b>Optional:</b> Authentication token. Can be overridden by <code>msg.accessToken</code>.
+        </div>
+    </div>
+    
+    <div class="form-tips">
+        <p><b>Input Message:</b></p>
+        <ul>
+            <li><code>msg.tpc_id</code> - Specific task instance ID to update</li>
+            <li><code>msg.tp_id</code> - Override the configured task package ID</li>
+            <li><code>msg.payload</code> - Update data to send with the request</li>
+            <li><code>msg.accessToken</code> - Override the authentication token</li>
+        </ul>
+        <p><b>Note:</b> Either tpc_id or tp_id must be provided to identify the task to update.</p>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="tp-update-api">
+    <p>Updates task packages via API. This is a control node for programmatically updating TPs from within Node-RED flows.</p>
+    
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>tpc_id <span class="property-type">string</span></dt>
+        <dd><b>Optional:</b> Specific task instance ID to update. Takes priority over tp_id.</dd>
+        
+        <dt>tp_id <span class="property-type">string</span></dt>
+        <dd><b>Optional:</b> Override the configured task package ID for this update request.</dd>
+        
+        <dt>payload <span class="property-type">any</span></dt>
+        <dd>Update data to send with the request. This will be merged with the API call.</dd>
+        
+        <dt>accessToken <span class="property-type">string</span></dt>
+        <dd><b>Optional:</b> Override the configured authentication token for this request.</dd>
+    </dl>
+    
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd>API response from the task package update request. Contains update confirmation on success, or <code>error</code> on failure.</dd>
+        
+        <dt>topic <span class="property-type">string</span></dt>
+        <dd>Set to "tp-update-success" on successful update or "tp-update-error" on failure.</dd>
+        
+        <dt>tp_data <span class="property-type">object</span></dt>
+        <dd>Additional task package data including tpc_id, tp_id, status, and updated_at timestamp (success only).</dd>
+        
+        <dt>error <span class="property-type">boolean</span></dt>
+        <dd>Set to true when an error occurs (error messages only).</dd>
+    </dl>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>Name <span class="property-type">string</span></dt>
+        <dd>Optional name for this node instance.</dd>
+        
+        <dt>Task Package ID <span class="property-type">string</span></dt>
+        <dd>
+            <b>Optional:</b> The tp_id of the task package type to update. Can be overridden by <code>msg.tp_id</code>.
+            Leave empty to allow dynamic targeting via message properties.
+        </dd>
+        
+        <dt>Auth Token <span class="property-type">string</span></dt>
+        <dd>
+            <b>Optional:</b> Bearer authentication token for API calls.
+            Can be overridden by <code>msg.accessToken</code>. Leave empty if authentication is not required.
+        </dd>
+    </dl>
+    
+    <h3>API Integration</h3>
+    <p>This node makes HTTP POST calls to <code>/task-package/update</code> with the following structure:</p>
+    <pre><code>{
+  "tpc_id": "uuid-of-specific-instance",  // OR
+  "tp_id": "tp01",
+  ...payload fields
+}</code></pre>
+    
+    <h3>Status Indicators</h3>
+    <ul>
+        <li><b>Blue ring:</b> Ready to update TPs</li>
+        <li><b>Yellow dot:</b> API call in progress</li>
+        <li><b>Green dot:</b> TP updated successfully</li>
+        <li><b>Red ring:</b> Update failed (check Node-RED logs)</li>
+    </ul>
+    
+    <h3>Usage Examples</h3>
+    
+    <h4>Update Specific Task Instance</h4>
+    <p>Update a specific running task by its instance ID:</p>
+    <pre><code>msg.tpc_id = "550e8400-e29b-41d4-a716-446655440000"
+msg.payload = {
+    "status_message": "Equipment maintenance required",
+    "progress": 75
+}</code></pre>
+    
+    <h4>Update Any Task of Type</h4>
+    <p>Update any active task of a specific type:</p>
+    <pre><code>msg.tp_id = "linen_delivery"
+msg.payload = {
+    "room_updated": "102A",
+    "priority": "urgent"
+}</code></pre>
+    
+    <h3>Error Handling</h3>
+    <p>Errors are logged to Node-RED and shown in the node status. Common errors include:</p>
+    <ul>
+        <li>Missing tpc_id or tp_id</li>
+        <li>API endpoint unreachable</li>
+        <li>Authentication failures</li>
+        <li>Task not found or already completed</li>
+    </ul>
+</script>

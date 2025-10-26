@@ -1,0 +1,150 @@
+<!-- Task Package Update Node HTML -->
+<script type="text/javascript">
+    // Isolate this code
+    (function () {
+        'use strict'
+
+        const nodeLabel = 'tp-update'
+
+        RED.nodes.registerType(nodeLabel, {
+            category: 'Task Package',
+            color: '#E57373',
+            defaults: {
+                name: { value: '' },
+                tp_id: { value: '' }
+            },
+            inputs: 0,
+            outputs: 1,
+            outputLabels: ['Update flow'],
+            icon: 'tp.svg',
+            paletteLabel: 'UPDATE',
+            label: function () { 
+                return this.name || `UPDATE ${this.tp_id}` || 'UPDATE'
+            },
+            oneditprepare: function() {
+                // Populate tp_id dropdown with available task packages
+                const populateTaskPackages = () => {
+                    const dropdown = $('#node-input-tp_id')
+                    dropdown.empty()
+                    dropdown.append('<option value="">Any task package...</option>')
+                    
+                    // Scan existing tp-start nodes in workspace for task packages
+                    RED.nodes.eachNode((node) => {
+                        if (node.type === 'tp-start' && node.tp_id) {
+                            const selected = node.tp_id === this.tp_id ? 'selected' : ''
+                            const displayName = node.tp_name || node.tp_id
+                            dropdown.append(`<option value="${node.tp_id}" ${selected}>${node.tp_id} - ${displayName}</option>`)
+                        }
+                    })
+                    
+                    // If no existing value and no tp-start nodes found, allow manual entry
+                    if (this.tp_id && dropdown.find('option[value="' + this.tp_id + '"]').length === 0) {
+                        dropdown.append(`<option value="${this.tp_id}" selected>${this.tp_id}</option>`)
+                    }
+                }
+                
+                // Populate on dialog open
+                populateTaskPackages.call(this)
+                
+                // Refresh button functionality
+                $('#refresh-tp-list-update').on('click', () => {
+                    populateTaskPackages.call(this)
+                })
+            }
+        })
+
+    })()
+</script>
+
+<script type="text/html" data-template-name="tp-update">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Task Package UPDATE">
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-tp_id"><i class="fa fa-tasks"></i> Task Package ID</label>
+        <select id="node-input-tp_id" style="width: 70%;">
+            <option value="">Any task package...</option>
+        </select>
+        <button type="button" id="refresh-tp-list-update" class="red-ui-button" style="margin-left: 10px;">
+            <i class="fa fa-refresh"></i> Refresh
+        </button>
+    </div>
+    
+    <div class="form-tips">
+        <p><b>Task Package ID:</b></p>
+        <ul>
+            <li><b>Specific ID:</b> Only listen for updates to this task package type</li>
+            <li><b>Empty (Any):</b> Listen for updates to any task package type</li>
+        </ul>
+        <p>This node will trigger when external API calls are made to update task packages.</p>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="tp-update">
+    <p>Listens for update events from the task package API and triggers update flow logic.</p>
+    
+    <h3>Inputs</h3>
+    <p>None. This node is triggered by events from the task package API.</p>
+    
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>tp_data <span class="property-type">object</span></dt>
+        <dd>Complete task package data including tpc_id, tp_id, status, and update information.</dd>
+        
+        <dt>payload <span class="property-type">any</span></dt>
+        <dd>The update data from the API request.</dd>
+        
+        <dt>topic <span class="property-type">string</span></dt>
+        <dd>Set to "task-package/{tp_id}/updated".</dd>
+    </dl>
+    
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>Task Package ID <span class="property-type">string</span></dt>
+        <dd>
+            <b>Optional:</b> Specific task package ID to listen for. Leave empty to listen for updates 
+            to any task package type. Must match the tp_id used in API calls.
+        </dd>
+    </dl>
+    
+    <h3>Flow Context</h3>
+    <p>This node works with flow context variables set by tp-start:</p>
+    <ul>
+        <li><code>current_tpc_id</code> - The current task instance ID</li>
+        <li><code>current_tp_id</code> - The current task package ID</li>
+        <li><code>current_tp_name</code> - The current task package name</li>
+        <li><code>active_tasks</code> - Array of active task instances</li>
+    </ul>
+    
+    <h3>Usage</h3>
+    <p>
+        Configure the node with a specific task package ID, then place it anywhere in your flow - no connections to tp-start required! 
+        The node will automatically trigger when external API calls are made to update task packages.
+    </p>
+    <p>
+        Connect this node to your custom update logic to handle task package updates from external systems.
+    </p>
+    
+    <h3>Key Features</h3>
+    <ul>
+        <li><b>Event-Driven:</b> Triggered by external API calls</li>
+        <li><b>Flexible Targeting:</b> Listen for specific task types or any task</li>
+        <li><b>Clean Flows:</b> No wiring required from tp-start</li>
+        <li><b>Database Integration:</b> Automatically updates task data if provided</li>
+        <li><b>Context Aware:</b> Works with both new and legacy flow contexts</li>
+    </ul>
+    
+    <h3>API Integration</h3>
+    <p>
+        This node responds to <code>POST /task-package/update</code> API calls with matching tp_id.
+        The API layer validates security and emits update events that this node listens for.
+    </p>
+    
+    <h3>Example Flow</h3>
+    <p>
+        Place tp-update node → Connect to function node for custom update logic → 
+        Optionally connect to tp-end if update completes the task.
+    </p>
+</script>
