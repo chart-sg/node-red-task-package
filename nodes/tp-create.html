@@ -1,10 +1,10 @@
-<!-- Task Package Create Node HTML -->
+<!-- Task Package Start Node HTML -->
 <script type="text/javascript">
     // Isolate this code
     (function () {
         'use strict'
 
-        const nodeLabel = 'tp-create'
+        const nodeLabel = 'tp-start'
 
         RED.nodes.registerType(nodeLabel, {
             category: 'Task Package',
@@ -15,16 +15,15 @@
                 tp_name: { value: '', required: true },
                 tp_form_url: { value: '' },
                 tp_schema: { value: '' },
-                config_node: { value: '', type: 'tp-config' },
-                auto_transition: { value: false }
+                config_node: { value: '', type: 'tp-config' }
             },
             inputs: 0,
             outputs: 1,
             outputLabels: ['Task flow'],
             icon: 'tp.svg',
-            paletteLabel: 'create',
+            paletteLabel: 'start',
             label: function () { 
-                return this.name || 'Create'
+                return this.name || 'Start'
             },
             oneditprepare: function() {
                 // Initialize JSON schema editor if needed
@@ -54,10 +53,10 @@
     })()
 </script>
 
-<script type="text/html" data-template-name="tp-create">
+<script type="text/html" data-template-name="tp-start">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Task Package Create">
+        <input type="text" id="node-input-name" placeholder="Task Package Start">
     </div>
     
     <div class="form-row">
@@ -96,16 +95,10 @@
             <b>Optional:</b> JSON schema to validate incoming payloads. Leave empty to skip validation.
         </div>
     </div>
-    
-    <div class="form-row">
-        <label for="node-input-auto_transition"><i class="fa fa-play"></i> Auto Transition</label>
-        <input type="checkbox" id="node-input-auto_transition" style="display: inline-block; width: auto; vertical-align: baseline;">
-        <label for="node-input-auto_transition" style="width: auto; margin-left: 5px;">Automatically transition to 'started' status</label>
-    </div>
 </script>
 
-<script type="text/html" data-help-name="tp-create">
-    <p>Entry point for task package flows. Listens for create events from the API layer and performs validation.</p>
+<script type="text/html" data-help-name="tp-start">
+    <p>Entry point for task package flows. Listens for start events from the API layer and performs validation.</p>
     
     <h3>Inputs</h3>
     <p>None. This node is triggered by events from the task package API.</p>
@@ -119,7 +112,7 @@
         <dd>The original payload from the API request.</dd>
         
         <dt>topic <span class="property-type">string</span></dt>
-        <dd>Set to "task-package/{tp_id}/created".</dd>
+        <dd>Set to "task-package/{tp_id}/started".</dd>
     </dl>
     
     <h3>Configuration</h3>
@@ -149,12 +142,6 @@
             the schema will be rejected. Leave empty to accept any payload.
         </dd>
         
-        <dt>Auto Transition <span class="property-type">boolean</span></dt>
-        <dd>
-            If enabled, automatically transitions task status from 'created' to 'started' after validation. 
-            Useful for simple workflows that don't need separate create/start phases.
-        </dd>
-        
         <dt>Configuration <span class="property-type">tp-config</span></dt>
         <dd>Reference to a tp-config node for system-wide settings.</dd>
     </dl>
@@ -171,18 +158,19 @@
     <h3>Usage</h3>
     <p>
         Place this node at the beginning of your task package flow. It will automatically listen for 
-        create events matching its tp_id and begin execution when triggered via the API.
+        start events matching its tp_id and begin execution when triggered via the API.
     </p>
     <p>
-        Connect this node to your custom validation logic, then wire to a tp-start node to begin task execution.
+        The task package will be created with 'started' status and validation will be performed 
+        before proceeding with your custom task logic.
     </p>
     <p>
-        Only one tp-create node per tp_id should exist in your Node-RED instance to avoid conflicts.
+        Only one tp-start node per tp_id should exist in your Node-RED instance to avoid conflicts.
     </p>
     
     <h3>API Integration</h3>
     <p>
         This node responds to <code>POST /task-package/start</code> API calls with matching tp_id.
-        The API layer validates security and emits create events that this node listens for.
+        The API layer validates security and emits start events that this node listens for.
     </p>
 </script>

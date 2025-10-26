@@ -1,5 +1,5 @@
-/** Task Package Create Node
- *  Entry point for task package flows - handles create events and validation
+/** Task Package Start Node
+ *  Entry point for task package flows - handles start events and validation
  *  Following TotallyInformation patterns
  * 
  * Copyright (c) 2025 CHART
@@ -21,7 +21,7 @@ const mod = {
     /** @type {RED} Reference to the master RED instance */
     RED: undefined,
     /** @type {string} Custom Node Name - must match HTML file and package.json */
-    nodeName: 'tp-create',
+    nodeName: 'tp-start',
     /** @type {boolean} Turn on/off debugging */
     debug: false,
 }
@@ -31,10 +31,10 @@ const mod = {
 //#region ----- Module-level support functions ----- //
 
 /** 
- * Handle incoming create events for this task package
+ * Handle incoming start events for this task package
  * @param {object} payload - The event payload from API layer
  */
-async function handleCreateEvent(payload) {
+async function handleStartEvent(payload) {
     // `this` context is the node instance
     const node = this
     
@@ -80,15 +80,20 @@ async function handleCreateEvent(payload) {
         flow.set('current_tp_name', this.tp_name)
         flow.set('task_cancelled', false)
         
+        // Update database status to 'started'
+        const taskPackageDB = require('../lib/task-package-db')
+        await taskPackageDB.updateTaskStatus(tpc_id, 'started')
+        
         // Create msg.tp_data object
         const tp_data = {
             tpc_id: tpc_id,
             tp_id: node.tp_id,
             tp_name: node.tp_name,
             user: payload.user,
-            status: 'created',
+            status: 'started',
             payload: payload.payload || {},
             created_at: new Date().toISOString(),
+            started_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
         }
         
@@ -96,37 +101,22 @@ async function handleCreateEvent(payload) {
         const msg = {
             tp_data: tp_data,
             payload: payload.payload || {},
-            topic: `task-package/${node.tp_id}/created`,
+            topic: `task-package/${node.tp_id}/started`,
             _tpOriginator: node.id
         }
         
         // Set node status
-        node.status({fill: 'blue', shape: 'dot', text: `Created: ${tpc_id.substr(0, 8)}...`})
+        node.status({fill: 'green', shape: 'dot', text: `Started: ${tpc_id.substr(0, 8)}...`})
         
-        // Handle auto transition
-        if (node.auto_transition) {
-            const taskPackageDB = require('../lib/task-package-db')
-            
-            await taskPackageDB.updateTaskStatus(tpc_id, 'started')
-            tp_data.status = 'started'
-            tp_data.started_at = new Date().toISOString()
-            tp_data.updated_at = new Date().toISOString()
-            msg.topic = `task-package/${node.tp_id}/started`
-            
-            msg.tp_data = tp_data
-        }
-        
-        // Send message to flow (user will wire this to their validation logic and then to tp-start)
+        // Send message to flow
         node.send(msg)
         
         if (mod.debug) {
-            let status = 'created'
-            if (node.auto_transition) status = 'started'
-            node.log(`${status} task package: ${node.tp_id} with tpc_id: ${tpc_id}`)
+            node.log(`Started task package: ${node.tp_id} with tpc_id: ${tpc_id}`)
         }
         
     } catch (error) {
-        node.error(`Error handling create event: ${error.message}`, payload)
+        node.error(`Error handling start event: ${error.message}`, payload)
         node.status({fill: 'red', shape: 'ring', text: 'Error'})
     }
 }
@@ -145,13 +135,12 @@ function nodeInstance(config) {
     RED.nodes.createNode(this, config) 
 
     // Transfer config items from the Editor panel to the runtime
-    this.name = config.name || `tp-create-${config.tp_id}`
+    this.name = config.name || `tp-start-${config.tp_id}`
     this.tp_id = config.tp_id
     this.tp_name = config.tp_name
     this.tp_form_url = config.tp_form_url
     this.tp_schema = config.tp_schema
     this.config_node = RED.nodes.getNode(config.config_node)
-    this.auto_transition = config.auto_transition || false
 
     // Validation
     if (!this.tp_id) {
@@ -229,16 +218,16 @@ function nodeInstance(config) {
     // Set initial status
     this.status({fill: 'blue', shape: 'ring', text: `Listening: ${this.tp_id}`})
     
-    // Create event listener for create events
-    const createEventHandler = handleCreateEvent.bind(this)
-    const eventName = tpEvents.onCreate(this.tp_id, createEventHandler)
+    // Create event listener for start events
+    const startEventHandler = handleStartEvent.bind(this)
+    const eventName = tpEvents.onStart(this.tp_id, startEventHandler)
     
     // Store event name for cleanup
     this._eventName = eventName
-    this._eventHandler = createEventHandler
+    this._eventHandler = startEventHandler
     
     if (mod.debug) {
-        this.log(`tp-create node initialized for: ${this.tp_id}`)
+        this.log(`tp-start node initialized for: ${this.tp_id}`)
     }
 
     /** Clean up on node removal/shutdown */
@@ -249,7 +238,7 @@ function nodeInstance(config) {
         }
         
         if (mod.debug) {
-            this.log(`tp-create node closing: ${this.tp_id}`)
+            this.log(`tp-start node closing: ${this.tp_id}`)
         }
         
         done()
@@ -262,7 +251,7 @@ function nodeInstance(config) {
  * Complete module definition for our Node. This is where things actually start.
  * @param {RED} RED The Node-RED runtime object
  */
-function TpCreate(RED) {
+function TpStart(RED) {
     // Save a reference to the RED runtime for convenience
     mod.RED = RED
     
@@ -276,5 +265,5 @@ function TpCreate(RED) {
 
 // Export the module definition, this is consumed by Node-RED on startup.
 module.exports = function(RED) {
-    TpCreate(RED)
+    TpStart(RED)
 }

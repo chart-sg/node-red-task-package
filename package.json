@@ -17,7 +17,6 @@
     "version": ">=1.3.0",
     "nodes": {
       "tp-config": "nodes/tp-config.js",
-      "tp-create": "nodes/tp-create.js",
       "tp-start": "nodes/tp-start.js",
       "tp-cancel": "nodes/tp-cancel.js",
       "tp-end": "nodes/tp-end.js",
@@ -26,7 +25,7 @@
       "tp-check-cancel": "nodes/tp-check-cancel.js",
       "tp-data-set": "nodes/tp-data-set.js",
       "tp-data-get": "nodes/tp-data-get.js",
-      "tp-create-api": "nodes/tp-create-api.js",
+      "tp-start-api": "nodes/tp-start-api.js",
       "tp-cancel-api": "nodes/tp-cancel-api.js",
       "tp-tracker": "nodes/tp-tracker.js",
       "edt-state": "nodes/edt-state.js",

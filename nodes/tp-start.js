@@ -1,5 +1,5 @@
 /** Task Package Start Node
- *  Updates task package status to 'started' in database
+ *  Entry point for task package flows - handles start events and validation
  *  Following TotallyInformation patterns
  * 
  * Copyright (c) 2025 CHART
@@ -11,6 +11,10 @@
 // @typedef {import('node-red')} RED
 
 //#region ----- Module level variables ---- //
+
+const tpEvents = require('../lib/task-package-events')
+const { v4: uuidv4 } = require('uuid')
+const Ajv = require('ajv')
 
 /** Main module variables */
 const mod = {
@@ -27,6 +31,97 @@ const mod = {
 //#region ----- Module-level support functions ----- //
 
 /** 
+ * Handle incoming start events for this task package
+ * @param {object} payload - The event payload from API layer
+ */
+async function handleStartEvent(payload) {
+    // `this` context is the node instance
+    const node = this
+    
+    try {
+        // Validate payload against schema if provided
+        if (node.tp_schema) {
+            const ajv = new Ajv()
+            const validate = ajv.compile(JSON.parse(node.tp_schema))
+            const valid = validate(payload.payload || {})
+            
+            if (!valid) {
+                node.error(`Schema validation failed: ${JSON.stringify(validate.errors)}`, payload)
+                node.status({fill: 'red', shape: 'ring', text: 'Schema validation failed'})
+                return
+            }
+        }
+        
+        // Use the tpc_id from API (already generated and stored in DB)
+        const tpc_id = payload.tpc_id
+        
+        // Store task context in node instance for parallel support
+        this.current_tpc_id = tpc_id
+        this.current_tp_id = this.tp_id
+        this.current_tp_name = this.tp_name
+        this.task_cancelled = false
+        
+        // Also store in flow context for backward compatibility
+        // But use arrays to support multiple concurrent tasks
+        const flow = node.context().flow
+        const active_tasks = flow.get('active_tasks') || []
+        active_tasks.push({
+            tpc_id: tpc_id,
+            tp_id: this.tp_id,
+            tp_name: this.tp_name,
+            create_node_id: node.id,
+            created_at: new Date().toISOString()
+        })
+        flow.set('active_tasks', active_tasks)
+        
+        // Keep legacy single-task context for existing flows
+        flow.set('current_tpc_id', tpc_id)
+        flow.set('current_tp_id', this.tp_id)
+        flow.set('current_tp_name', this.tp_name)
+        flow.set('task_cancelled', false)
+        
+        // Update database status to 'started'
+        const taskPackageDB = require('../lib/task-package-db')
+        await taskPackageDB.updateTaskStatus(tpc_id, 'started')
+        
+        // Create msg.tp_data object
+        const tp_data = {
+            tpc_id: tpc_id,
+            tp_id: node.tp_id,
+            tp_name: node.tp_name,
+            user: payload.user,
+            status: 'started',
+            payload: payload.payload || {},
+            created_at: new Date().toISOString(),
+            started_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }
+        
+        // Create output message
+        const msg = {
+            tp_data: tp_data,
+            payload: payload.payload || {},
+            topic: `task-package/${node.tp_id}/started`,
+            _tpOriginator: node.id
+        }
+        
+        // Set node status
+        node.status({fill: 'green', shape: 'dot', text: `Started: ${tpc_id.substr(0, 8)}...`})
+        
+        // Send message to flow
+        node.send(msg)
+        
+        if (mod.debug) {
+            node.log(`Started task package: ${node.tp_id} with tpc_id: ${tpc_id}`)
+        }
+        
+    } catch (error) {
+        node.error(`Error handling start event: ${error.message}`, payload)
+        node.status({fill: 'red', shape: 'ring', text: 'Error'})
+    }
+}
+
+/** 
  * Run when an actual instance of our node is committed to a flow
  * @param {object} config The Node-RED config object
  */
@@ -40,73 +135,112 @@ function nodeInstance(config) {
     RED.nodes.createNode(this, config) 
 
     // Transfer config items from the Editor panel to the runtime
-    this.name = config.name || 'tp-start'
-    this.auto_transition = config.auto_transition || false
+    this.name = config.name || `tp-start-${config.tp_id}`
+    this.tp_id = config.tp_id
+    this.tp_name = config.tp_name
+    this.tp_form_url = config.tp_form_url
+    this.tp_schema = config.tp_schema
+    this.config_node = RED.nodes.getNode(config.config_node)
+
+    // Validation
+    if (!this.tp_id) {
+        this.error('Task Package ID is required')
+        this.status({fill: 'red', shape: 'ring', text: 'No tp_id'})
+        return
+    }
     
-    // Set initial status
-    this.status({fill: 'blue', shape: 'ring', text: 'Ready'})
+    if (!this.config_node) {
+        this.warn('No configuration node selected')
+    }
     
-    // Handle incoming messages
-    this.on('input', async (msg, send, done) => {
+    // Update task_packages table with current node configuration
+    // Use a robust approach that waits for database to be ready
+    const syncToDatabase = async () => {
         try {
-            // Validate input message
-            if (!msg.tp_data || !msg.tp_data.tpc_id) {
-                this.error('Message must contain tp_data.tpc_id', msg)
-                this.status({fill: 'red', shape: 'ring', text: 'Missing tpc_id'})
-                if (done) done()
+            const taskPackageDB = require('../lib/task-package-db')
+            
+            // Upsert the task package definition
+            await taskPackageDB.upsertTaskPackage(
+                this.tp_id,
+                this.tp_name || this.tp_id,
+                this.tp_form_url || this.tp_id
+            )
+            
+            if (mod.debug) {
+                this.log(`Task package definition updated: ${this.tp_id} -> ${this.tp_name}`)
+            }
+        } catch (error) {
+            this.warn(`Failed to update task package in database: ${error.message}`)
+        }
+    }
+    
+    // Robust database sync that waits for database to be ready
+    let syncCompleted = false
+    const waitForDatabaseAndSync = () => {
+        if (syncCompleted) return // Prevent multiple syncs
+        
+        try {
+            const taskPackageDB = require('../lib/task-package-db')
+            
+            // Check if database is initialized
+            if (taskPackageDB.isInitialized) {
+                syncToDatabase().then(() => {
+                    syncCompleted = true
+                })
                 return
             }
             
-            const tpc_id = msg.tp_data.tpc_id
-            
-            // Update database status to 'started'
-            const taskPackageDB = require('../lib/task-package-db')
-            await taskPackageDB.updateTaskStatus(tpc_id, 'started')
-            
-            // Update tp_data status and add start timestamp
-            msg.tp_data.status = 'started'
-            msg.tp_data.started_at = new Date().toISOString()
-            msg.tp_data.updated_at = new Date().toISOString()
-            
-            // If auto_transition is enabled, immediately transition to 'ongoing'
-            if (this.auto_transition) {
-                await taskPackageDB.updateTaskStatus(tpc_id, 'ongoing')
-                msg.tp_data.status = 'ongoing'
-                msg.tp_data.ongoing_at = new Date().toISOString()
-                msg.tp_data.updated_at = new Date().toISOString()
-                msg.topic = `task-package/${msg.tp_data.tp_id}/ongoing`
-            } else {
-                msg.topic = `task-package/${msg.tp_data.tp_id}/started`
-            }
-            
-            // Set node status
-            this.status({fill: 'green', shape: 'dot', text: `Started: ${tpc_id.substr(0, 8)}...`})
-            
-            // Send message to next node
-            send(msg)
-            
-            if (mod.debug) {
-                this.log(`Task package started: ${tpc_id}`)
-            }
-            
-            if (done) done()
+            // Database not ready yet, wait and retry
+            setTimeout(() => {
+                waitForDatabaseAndSync()
+            }, 1000) // Check every second
             
         } catch (error) {
-            this.error(`Error starting task package: ${error.message}`, msg)
-            this.status({fill: 'red', shape: 'ring', text: 'Error'})
-            if (done) done(error)
+            // Database module might not be ready, try again later
+            setTimeout(() => {
+                waitForDatabaseAndSync()
+            }, 1000)
         }
-    })
+    }
+    
+    // Start the database sync process
+    waitForDatabaseAndSync()
+    
+    // Also do immediate sync for deployment scenarios (when db is already ready)
+    setTimeout(() => {
+        if (!syncCompleted) {
+            syncToDatabase().then(() => {
+                syncCompleted = true
+            })
+        }
+    }, 100) // Small delay to avoid race conditions
+    
+    // Set initial status
+    this.status({fill: 'blue', shape: 'ring', text: `Listening: ${this.tp_id}`})
+    
+    // Create event listener for start events
+    const startEventHandler = handleStartEvent.bind(this)
+    const eventName = tpEvents.onStart(this.tp_id, startEventHandler)
+    
+    // Store event name for cleanup
+    this._eventName = eventName
+    this._eventHandler = startEventHandler
     
     if (mod.debug) {
-        this.log('tp-start node initialized')
+        this.log(`tp-start node initialized for: ${this.tp_id}`)
     }
 
     /** Clean up on node removal/shutdown */
     this.on('close', (removed, done) => {
-        if (mod.debug) {
-            this.log('tp-start node closing')
+        // Remove event listener
+        if (this._eventName && this._eventHandler) {
+            tpEvents.removeEventListener(this._eventName, this._eventHandler)
         }
+        
+        if (mod.debug) {
+            this.log(`tp-start node closing: ${this.tp_id}`)
+        }
+        
         done()
     })
 }
