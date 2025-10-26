@@ -17,10 +17,10 @@
             outputs: 0,
             inputLabels: ['Task completion'],
             icon: 'tp.svg',
-            paletteLabel: 'end',
+            paletteLabel: 'END',
             label: function () { 
-                return this.name || 'End'
-            }
+                return this.name || 'END'
+            },
         })
 
     })()
@@ -29,7 +29,7 @@
 <script type="text/html" data-template-name="tp-end">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Task Package End">
+        <input type="text" id="node-input-name" placeholder="Task Package END">
     </div>
     
     <div class="form-tips">

@@ -21,9 +21,9 @@
             outputs: 1,
             outputLabels: ['Task flow'],
             icon: 'tp.svg',
-            paletteLabel: 'start',
+            paletteLabel: 'START',
             label: function () { 
-                return this.name || 'Start'
+                return this.name || 'START'
             },
             oneditprepare: function() {
                 // Initialize JSON schema editor if needed
@@ -56,7 +56,7 @@
 <script type="text/html" data-template-name="tp-start">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Task Package Start">
+        <input type="text" id="node-input-name" placeholder="Task Package START">
     </div>
     
     <div class="form-row">

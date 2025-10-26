@@ -20,9 +20,9 @@
             outputLabels: ['API response'],
             icon: 'tp.svg',
             align: 'right',
-            paletteLabel: 'API - Cancel',
+            paletteLabel: 'API - CANCEL',
             label: function () { 
-                return this.name || 'API - Cancel'
+                return this.name || 'API - CANCEL'
             },
             oneditprepare: function() {
                 // Populate tp_id dropdown with available task packages
@@ -32,16 +32,16 @@
                     dropdown.empty()
                     dropdown.append('<option value="">Any task package...</option>')
                     
-                    // Scan existing tp-create nodes in workspace for task packages
+                    // Scan existing tp-start nodes in workspace for task packages
                     RED.nodes.eachNode((node) => {
-                        if (node.type === 'tp-create' && node.tp_id) {
+                        if (node.type === 'tp-start' && node.tp_id) {
                             const selected = node.tp_id === currentValue ? 'selected' : ''
                             const displayName = node.tp_name || node.tp_id
                             dropdown.append(`<option value="${node.tp_id}" ${selected}>${node.tp_id} - ${displayName}</option>`)
                         }
                     })
                     
-                    // If no existing value and no tp-create nodes found, allow manual entry
+                    // If no existing value and no tp-start nodes found, allow manual entry
                     if (currentValue && dropdown.find('option[value="' + currentValue + '"]').length === 0) {
                         dropdown.append(`<option value="${currentValue}" selected>${currentValue}</option>`)
                     }
@@ -63,7 +63,7 @@
 <script type="text/html" data-template-name="tp-cancel-api">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="API - Cancel">
+        <input type="text" id="node-input-name" placeholder="API - CANCEL">
     </div>
     
     <div class="form-row">
