@@ -170,7 +170,7 @@ function TpDataSet(RED) {
     RED.nodes.registerType(mod.nodeName, nodeInstance)
     
     if (mod.debug) {
-        RED.log.info(`✅ Registered node: ${mod.nodeName}`)
+        RED.log.info(`Registered node: ${mod.nodeName}`)
     }
 }
 

@@ -4,13 +4,13 @@ const path = require('path');
 function formatSubflowJson(rawData) {
     // Check if it's already in the correct format
     if (rawData.type === 'subflow' && rawData.flow) {
-        console.log('✅ JSON already in correct format');
+        console.log('JSON already in correct format');
         return rawData;
     }
     
     // Handle raw export format (array of nodes)
     if (Array.isArray(rawData)) {
-        console.log('🔄 Converting raw export format...');
+        console.log('Converting raw export format...');
         
         // Find the subflow definition anywhere in the array
         const subflowDefinition = rawData.find(node => node.type === 'subflow');
@@ -29,13 +29,13 @@ function formatSubflowJson(rawData) {
             flow: flowNodes
         };
         
-        console.log('✅ Converted raw export to proper format');
+        console.log('Converted raw export to proper format');
         return formattedSubflow;
     }
     
     // Handle single subflow definition without flow property
     if (rawData.type === 'subflow' && !rawData.flow) {
-        console.log('⚠️  Single subflow without flow property - adding empty flow');
+        console.log('Single subflow without flow property - adding empty flow');
         return {
             ...rawData,
             flow: []
@@ -128,16 +128,16 @@ module.exports = function(RED) {
         
         fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
         
-        console.log(`✅ Added subflow: ${name} as ${kebabName}`);
+        console.log(`Added subflow: ${name} as ${kebabName}`);
         console.log(`📁 Files created:`);
         console.log(`   - nodes/${kebabName}.js`);
         console.log(`   - nodes/${kebabName}.json`);
-        console.log(`📝 Updated package.json`);
-        console.log(`🎯 Subflow ID: ${formattedSubflow.id}`);
+        console.log(`Updated package.json`);
+        console.log(`Subflow ID: ${formattedSubflow.id}`);
         console.log(`📋 Flow nodes: ${formattedSubflow.flow.length}`);
         
     } catch (error) {
-        console.error('❌ Error adding subflow:', error.message);
+        console.error('Error adding subflow:', error.message);
         process.exit(1);
     }
 }
@@ -155,7 +155,7 @@ if (require.main === module) {
     }
     
     if (!fs.existsSync(jsonPath)) {
-        console.error(`❌ File not found: ${jsonPath}`);
+        console.error(`File not found: ${jsonPath}`);
         process.exit(1);
     }
     

@@ -69,7 +69,7 @@ function nodeInstance(config) {
             })
             
             mod.apiInitialized = true
-            this.log('✅ Task Package API initialized on Node-RED server')
+            this.log('Task Package API initialized on Node-RED server')
         } else {
             // Update existing configuration
             taskPackageAPI.updateConfig({
@@ -77,7 +77,7 @@ function nodeInstance(config) {
                 db_url: this.db_url
             })
             
-            this.log('🔄 Task Package API configuration updated')
+            this.log('Task Package API configuration updated')
         }
         
     } catch (error) {
@@ -119,7 +119,7 @@ function TpConfig(RED) {
     RED.nodes.registerType(mod.nodeName, nodeInstance)
     
     if (mod.debug) {
-        RED.log.info(`✅ Registered config node: ${mod.nodeName}`)
+        RED.log.info(`Registered config node: ${mod.nodeName}`)
     }
 }
 

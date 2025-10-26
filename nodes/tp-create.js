@@ -203,10 +203,17 @@ function nodeInstance(config) {
         }
     }
     
-    // Start the database sync process with a delay to let tp-config initialize first
+    // Start the database sync process
+    waitForDatabaseAndSync()
+    
+    // Also do immediate sync for deployment scenarios (when db is already ready)
     setTimeout(() => {
-        waitForDatabaseAndSync()
-    }, 2000) // 2 second delay to ensure tp-config has initialized database
+        if (!syncCompleted) {
+            syncToDatabase().then(() => {
+                syncCompleted = true
+            })
+        }
+    }, 100) // Small delay to avoid race conditions
     
     // Set initial status
     this.status({fill: 'blue', shape: 'ring', text: `Listening: ${this.tp_id}`})

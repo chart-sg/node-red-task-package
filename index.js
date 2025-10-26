@@ -15,7 +15,7 @@ module.exports = function(RED) {
     
     // Check if nodes directory exists
     if (!fs.existsSync(nodesDir)) {
-        console.warn("⚠️  No nodes directory found. No task package nodes will be loaded.");
+        console.warn("No nodes directory found. No task package nodes will be loaded.");
         return;
     }
     
@@ -32,18 +32,18 @@ module.exports = function(RED) {
                 if (typeof nodeModule === 'function') {
                     nodeModule(RED);
                     const nodeName = path.basename(nodeFile, '.js');
-                    console.log(`✅ Loaded task package node: ${nodeName}`);
+                    console.log(`Loaded task package node: ${nodeName}`);
                 } else {
-                    console.warn(`⚠️  ${nodeFile} does not export a function`);
+                    console.warn(`${nodeFile} does not export a function`);
                 }
             } catch (error) {
-                console.error(`❌ Error loading node from ${nodeFile}:`, error.message);
+                console.error(`Error loading node from ${nodeFile}:`, error.message);
             }
         });
         
-        console.log(`📦 Task Package: Loaded ${nodeFiles.length} nodes`);
+        console.log(`Task Package: Loaded ${nodeFiles.length} nodes`);
         
     } catch (error) {
-        console.error("❌ Error loading task package nodes:", error.message);
+        console.error("Error loading task package nodes:", error.message);
     }
 }

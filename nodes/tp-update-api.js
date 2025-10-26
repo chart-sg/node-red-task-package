@@ -55,7 +55,7 @@ async function callUpdateAPI(data, config) {
         }
         
         if (mod.debug) {
-            console.log('🔄 Updating TP via API:', endpoint, requestData)
+            console.log('Updating TP via API:', endpoint, requestData)
         }
         
         const response = await axios.post(endpoint, requestData, {
@@ -206,7 +206,7 @@ function UpdateTp(RED) {
     RED.nodes.registerType(mod.nodeName, nodeInstance)
     
     if (mod.debug) {
-        RED.log.info(`✅ Registered node: ${mod.nodeName}`)
+        RED.log.info(`Registered node: ${mod.nodeName}`)
     }
 }
 

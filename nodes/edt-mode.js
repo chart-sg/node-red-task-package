@@ -91,7 +91,7 @@ async function handleMessage(msg) {
                         `Auto-created for entity ${entityId} from message via node ${node.id}`
                     )
                     if (mod.debug) {
-                        node.log(`📊 Created database entry for ${node.mode_name}:${entityId}`)
+                        node.log(`Created database entry for ${node.mode_name}:${entityId}`)
                     }
                 } catch (dbError) {
                     // Ignore if another node already created the entry (race condition)
@@ -99,7 +99,7 @@ async function handleMessage(msg) {
                         throw dbError
                     } else {
                         if (mod.debug) {
-                            node.log(`📊 Database entry already exists for ${node.mode_name}:${entityId} (race condition handled)`)
+                            node.log(`Database entry already exists for ${node.mode_name}:${entityId} (race condition handled)`)
                         }
                         // Re-fetch the state that was created by the other node
                         currentMode = await edtModeDB.getModeState(node.mode_name, entityId, node.initial_state)
@@ -334,7 +334,7 @@ function nodeInstance(config) {
         }
         
         if (conflictingNodes > 0) {
-            this.warn(`⚠️  Found ${conflictingNodes} other edt-mode node(s) with same scope "${this.mode_name}" and entity field "${this.entity_field}". This may cause conflicting behavior.`)
+            this.warn(`Found ${conflictingNodes} other edt-mode node(s) with same scope "${this.mode_name}" and entity field "${this.entity_field}". This may cause conflicting behavior.`)
         }
     }
     
@@ -355,7 +355,7 @@ function nodeInstance(config) {
             )
             
             if (mod.debug) {
-                this.log(`📊 Database entry created for mode: ${this.mode_name}`)
+                this.log(`Database entry created for mode: ${this.mode_name}`)
             }
         } catch (error) {
             this.error(`Failed to initialize database entry for ${this.mode_name}: ${error.message}`)
@@ -376,7 +376,7 @@ function nodeInstance(config) {
         }
         
         if (mod.debug) {
-            this.log(`📊 Initial state set for mode: ${this.mode_name} = ${this.initial_state}`)
+            this.log(`Initial state set for mode: ${this.mode_name} = ${this.initial_state}`)
         }
     }
     
@@ -465,7 +465,7 @@ function EdtMode(RED) {
     RED.nodes.registerType(mod.nodeName, nodeInstance)
     
     if (mod.debug) {
-        RED.log.info(`✅ Registered node: ${mod.nodeName}`)
+        RED.log.info(`Registered node: ${mod.nodeName}`)
     }
 }
 

@@ -4,13 +4,13 @@ const path = require('path');
 function formatNestedSubflowJson(rawData) {
     // Check if it's already in the correct format
     if (rawData.type === 'subflow' && rawData.flow) {
-        console.log('✅ JSON already in correct format');
+        console.log('JSON already in correct format');
         return { formattedSubflow: rawData, connectionMap: null };
     }
     
     // Handle raw export format (array of nodes)
     if (Array.isArray(rawData)) {
-        console.log('🔄 Converting nested subflow export format...');
+        console.log('Converting nested subflow export format...');
         
         // Find all subflow definitions
         const subflowDefinitions = rawData.filter(node => node.type === 'subflow');
@@ -19,7 +19,7 @@ function formatNestedSubflowJson(rawData) {
             throw new Error('Could not find any subflow definition in exported JSON');
         }
         
-        console.log(`📊 Found ${subflowDefinitions.length} subflow definition(s)`);
+        console.log(`Found ${subflowDefinitions.length} subflow definition(s)`);
         
         // Find regular nodes (not subflow definitions)
         const regularNodes = rawData.filter(node => node.type !== 'subflow');
@@ -42,11 +42,11 @@ function formatNestedSubflowJson(rawData) {
             // If no subflow contains instances, take the last one (typical export pattern)
             if (!mainSubflow) {
                 mainSubflow = subflowDefinitions[subflowDefinitions.length - 1];
-                console.log('⚠️  No subflow instances found, taking last subflow as main');
+                console.log('No subflow instances found, taking last subflow as main');
             }
         }
         
-        console.log(`🎯 Main subflow identified: "${mainSubflow.name}" (${mainSubflow.id})`);
+        console.log(`Main subflow identified: "${mainSubflow.name}" (${mainSubflow.id})`);
         
         // Get nested subflow definitions (all except the main one)
         const nestedSubflows = subflowDefinitions.filter(sf => sf.id !== mainSubflow.id);
@@ -68,7 +68,7 @@ function formatNestedSubflowJson(rawData) {
                 const nestedSubflow = nestedSubflows.find(sf => sf.id === nestedSubflowId);
                 
                 if (nestedSubflow) {
-                    console.log(`🔄 Flattening subflow instance: ${node.id} -> ${nestedSubflow.name}`);
+                    console.log(`Flattening subflow instance: ${node.id} -> ${nestedSubflow.name}`);
                     
                     // Find nodes that belong to this nested subflow
                     const nestedNodes = rawData.filter(n => n.z === nestedSubflowId && n.type !== 'subflow');
@@ -97,7 +97,7 @@ function formatNestedSubflowJson(rawData) {
                         });
                     }
                 } else {
-                    console.log(`⚠️  Nested subflow ${nestedSubflowId} not found, keeping instance`);
+                    console.log(`Nested subflow ${nestedSubflowId} not found, keeping instance`);
                     flattenedNodes.push(node);
                 }
             } else {
@@ -130,10 +130,10 @@ function formatNestedSubflowJson(rawData) {
             delete flattenedNodes.connectionMap;
         }
         
-        console.log(`📊 Nested subflows: ${nestedSubflows.length} (flattened)`);
-        console.log(`📊 Main subflow nodes: ${mainSubflowNodes.length}`);
-        console.log(`📊 Flattened nodes: ${flattenedNodes.length}`);
-        console.log(`📊 Orphaned nodes: ${orphanedNodes.length}`);
+        console.log(`Nested subflows: ${nestedSubflows.length} (flattened)`);
+        console.log(`Main subflow nodes: ${mainSubflowNodes.length}`);
+        console.log(`Flattened nodes: ${flattenedNodes.length}`);
+        console.log(`Orphaned nodes: ${orphanedNodes.length}`);
         
         // Create the properly formatted subflow
         const formattedSubflow = {
@@ -141,13 +141,13 @@ function formatNestedSubflowJson(rawData) {
             flow: flattenedNodes
         };
         
-        console.log('✅ Converted nested subflow export to proper format');
+        console.log('Converted nested subflow export to proper format');
         return { formattedSubflow, connectionMap };
     }
     
     // Handle single subflow definition without flow property
     if (rawData.type === 'subflow' && !rawData.flow) {
-        console.log('⚠️  Single subflow without flow property - adding empty flow');
+        console.log('Single subflow without flow property - adding empty flow');
         return {
             formattedSubflow: {
                 ...rawData,
@@ -267,16 +267,16 @@ module.exports = function(RED) {
         
         fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
         
-        console.log(`✅ Added nested subflow: ${name} as ${kebabName}`);
+        console.log(`Added nested subflow: ${name} as ${kebabName}`);
         console.log(`📁 Files created:`);
         console.log(`   - nodes/${kebabName}.js`);
         console.log(`   - nodes/${kebabName}.json`);
-        console.log(`📝 Updated package.json`);
-        console.log(`🎯 Main subflow ID: ${formattedSubflow.id}`);
+        console.log(`Updated package.json`);
+        console.log(`Main subflow ID: ${formattedSubflow.id}`);
         console.log(`📋 Total flow nodes: ${formattedSubflow.flow.length}`);
         
     } catch (error) {
-        console.error('❌ Error adding nested subflow:', error.message);
+        console.error('Error adding nested subflow:', error.message);
         process.exit(1);
     }
 }
@@ -295,7 +295,7 @@ if (require.main === module) {
     }
     
     if (!fs.existsSync(jsonPath)) {
-        console.error(`❌ File not found: ${jsonPath}`);
+        console.error(`File not found: ${jsonPath}`);
         process.exit(1);
     }
     
