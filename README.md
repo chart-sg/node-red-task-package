@@ -21,9 +21,9 @@ The **node-red-task-package** module provides:
 
 ## Installation
 
-### From npm (when published)
+### From npm
 ```bash
-npm install @chart/node-red-task-package
+npm install @chart-sg/node-red-task-package
 ```
 
 ### Local Development
