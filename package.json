@@ -1,6 +1,6 @@
 {
   "name": "@chart-sg/node-red-task-package",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CHART's Node-RED Task Package Orchestrator",
   "license": "ISC",
   "author": "CHART",
