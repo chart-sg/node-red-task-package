@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2025-11-28
+
+### Enhanced
+- Task Package API now includes full `user_data` object from Keycloak authentication
+- tp-start nodes now provide complete user profile information in `msg.tp_data.user_data`
+- Enhanced authentication flow to pass rich user context including permissions, job title, and contact details
+- Maintained backward compatibility with existing `user` field
+
 ## [1.0.1] - 2025-11-03
 
 ### Fixed

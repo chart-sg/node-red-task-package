@@ -89,6 +89,7 @@ async function handleStartEvent(payload) {
             tpc_id: tpc_id,
             tp_id: node.tp_id,
             tp_name: node.tp_name,
+            user_data: payload.user_data || { preferred_username: payload.user },
             user: payload.user,
             status: 'started',
             payload: payload.payload || {},
